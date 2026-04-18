@@ -69,18 +69,9 @@ def test_10_epoch_logging_small_dataset_mlp_layers(small_dataset, caplog, tmp_pa
 
     records = caplog.records
 
-    # Verify [EPOCH] log strings exist
-    epoch_logs = [r for r in records if "[EPOCH]" in r.getMessage()]
+    # Verify [RECAP] log strings exist
+    recap_logs = [r for r in records if "[RECAP]" in r.getMessage()]
 
-    # Check that 10 standalone epoch logs were triggered
-    assert (
-        sum(1 for e in epoch_logs if "finished | train_loss=" in e.getMessage()) >= 10
-    ), "Should have logged 10 epochs"
-
-    # Verify that the recap at the end printed
-    recap_logs = [
-        r for r in records if "[ACTION] Recap of last epochs:" in r.getMessage()
-    ]
     assert len(recap_logs) == 1, (
         "Recap should be printed exactly once since log_interval=10 and epochs=10"
     )

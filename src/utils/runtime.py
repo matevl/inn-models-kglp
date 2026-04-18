@@ -15,7 +15,7 @@ _TB_WRITER = None
 class _ActionOnlyFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         msg = record.getMessage()
-        return "[ACTION]" in msg or "[EPOCH]" in msg
+        return "[ACTION]" in msg or "[EPOCH]" in msg or "[RECAP]" in msg
 
 
 def configure_logging() -> logging.Logger:

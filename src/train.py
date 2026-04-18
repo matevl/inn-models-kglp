@@ -81,7 +81,6 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
     scaler = torch.amp.GradScaler(device.type) if device.type == "cuda" else None
 
     epoch_loss_total = 0.0
-    log_buffer = []
 
     train_loader = create_train_dataloader(
         train_triples=dataset.train,
@@ -110,18 +109,19 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
         epoch_loss_total += avg_loss
         writer.add_scalar("Loss/train", avg_loss, epoch)
 
-        logMsg = f"[EPOCH] Epoch {epoch} finished | train_loss={avg_loss:.6f}"
-
         # Calculate epoch accuracy if present
+        avg_acc = None
         if iter_metrics and "accuracy" in iter_metrics[(0)]:
             avg_acc = sum(m["accuracy"] * m["batch_items"] for m in iter_metrics) / sum(
                 m["batch_items"] for m in iter_metrics
             )
-            logMsg += f" | train_accuracy={avg_acc:.4f}"
             writer.add_scalar("Accuracy/train", avg_acc, epoch)
 
-        LOGGER.info(logMsg)
-        log_buffer.append(logMsg)
+        if epoch % cfg.training.log_interval == 0:
+            logMsg = f"[RECAP] Epoch {epoch} finished | train_loss={avg_loss:.6f}"
+            if avg_acc is not None:
+                logMsg += f" | train_accuracy={avg_acc:.4f}"
+            LOGGER.info(logMsg)
 
         # Radius Tracking (Interval logging) - Max, Min and Mean
         # Only compute these expensive metrics at the log interval
@@ -141,10 +141,6 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
                     writer.add_scalar("Radius/Min", r_min, epoch)
                     writer.add_scalar("Radius/Mean", r_mean, epoch)
 
-                    log_buffer.append(
-                        f"  -> R_Max: {r_max:.4f} | R_Min: {r_min:.4f} | R_Mean: {r_mean:.4f}"
-                    )
-
                     # Log radius metrics
                     LOGGER.info(
                         "[ACTION] Epoch %d Radius -> R_Max: %.4f | R_Min: %.4f | R_Mean: %.4f",
@@ -153,10 +149,6 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
                         r_min,
                         r_mean,
                     )
-
-            recap_str = "\n\t".join(log_buffer)
-            LOGGER.info("[ACTION] Recap of last epochs:\n\t%s", recap_str)
-            log_buffer.clear()
 
         # Save periodically
         if epoch % 50 == 0 or epoch == (start_epoch + cfg.training.epochs - 1):
