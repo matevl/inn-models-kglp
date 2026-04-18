@@ -1,0 +1,4 @@
+name: "wn18rr"
+path: "datasets/wn18rr"
+num_entities: 40943
+num_relations: 11
