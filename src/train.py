@@ -79,14 +79,17 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
     model.train()
 
     epoch_loss_total = 0.0
+    log_buffer = []
 
     # Custom training loop to show logs dynamically
     for epoch in range(start_epoch, start_epoch + cfg.training.epochs):
-        loss_dict = train_epoch(
+        avg_loss, iter_metrics = train_epoch(
             model=model,
             optimizer=optimizer,
-            triples=dataset.train,
+            train_triples=dataset.train,
             batch_size=cfg.training.batch_size,
+            num_entities=dataset.num_entities,
+            margin=model_cfg.margin,
             num_negatives=cfg.training.num_negatives_train,
             alpha=model_cfg.alpha,
             loss_type=model_cfg.loss_type,
@@ -96,31 +99,40 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
         )
 
         # Add Tensorboard scalar logs
-        epoch_loss_total += loss_dict.get("loss", 0.0)
-        writer.add_scalar("Loss/train", loss_dict.get("loss", 0.0), epoch)
+        epoch_loss_total += avg_loss
+        writer.add_scalar("Loss/train", avg_loss, epoch)
 
-        # Radius Tracking (Interval logging) - Max and Mean
-        if hasattr(model, "entity_encoder") and hasattr(
-            model.entity_encoder, "entity_rho"
-        ):
-            with torch.no_grad():
-                radiuses = torch.nn.functional.softplus(
-                    model.entity_encoder.entity_rho.weight
-                )
-                r_max = radiuses.max().item()
-                r_mean = radiuses.mean().item()
+        logMsg = f"[EPOCH] Epoch {epoch} finished | train_loss={avg_loss:.6f}"
+        if iter_metrics and "accuracy" in iter_metrics:
+            logMsg += f" | train_accuracy={iter_metrics['accuracy']:.4f}"
+            writer.add_scalar("Accuracy/train", iter_metrics['accuracy'], epoch)
+        
+        LOGGER.info(logMsg)
+        log_buffer.append(logMsg)
 
-                writer.add_scalar("Radius/Max", r_max, epoch)
-                writer.add_scalar("Radius/Mean", r_mean, epoch)
-
-                if epoch % cfg.training.log_interval == 0:
-                    LOGGER.info(
-                        "[ACTION] Epoch %d | Loss: %.4f | R_Max: %.4f | R_Mean: %.4f",
-                        epoch,
-                        loss_dict.get("loss", 0.0),
-                        r_max,
-                        r_mean,
+        # Radius Tracking (Interval logging) - Max, Min and Mean
+        # Only compute these expensive metrics at the log interval
+        if epoch % cfg.training.log_interval == 0:
+            if hasattr(model, "entity_encoder") and hasattr(
+                model.entity_encoder, "entity_rho"
+            ):
+                with torch.no_grad():
+                    radiuses = torch.nn.functional.softplus(
+                        model.entity_encoder.entity_rho.weight
                     )
+                    r_max = radiuses.max().item()
+                    r_min = radiuses.min().item()
+                    r_mean = radiuses.mean().item()
+
+                    writer.add_scalar("Radius/Max", r_max, epoch)
+                    writer.add_scalar("Radius/Min", r_min, epoch)
+                    writer.add_scalar("Radius/Mean", r_mean, epoch)
+
+                    log_buffer.append(f"  -> R_Max: {r_max:.4f} | R_Min: {r_min:.4f} | R_Mean: {r_mean:.4f}")
+            
+            recap_str = "\n\t".join(log_buffer)
+            LOGGER.info("[ACTION] Recap of last epochs:\n\t%s", recap_str)
+            log_buffer.clear()
 
         # Save periodically
         if epoch % 50 == 0 or epoch == (start_epoch + cfg.training.epochs - 1):

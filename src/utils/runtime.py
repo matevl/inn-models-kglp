@@ -22,6 +22,7 @@ class _ActionOnlyFilter(logging.Filter):
 def configure_logging() -> logging.Logger:
     logger = logging.getLogger("inn-models-kglp")
     logger.setLevel(logging.INFO)
+    logger.propagate = False  # Prevent propagating to Hydra's root logger to avoid duplicated logs
     if logger.handlers:
         return logger
     try:
@@ -37,29 +38,25 @@ def configure_logging() -> logging.Logger:
     return logger
 
 
-def start_run_logging(cfg: DictConfig, logs_root: str = "logs") -> Path:
+def start_run_logging(cfg: DictConfig) -> Path:
     global _RUN_DIR, _RUN_NAME
     logger = configure_logging()
     if _RUN_DIR is not None:
         return _RUN_DIR
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     mode = cfg.get("mode", "train")
     model_name = cfg.model.name if "model" in cfg and "name" in cfg.model else "unknown"
     dataset_name = (
         cfg.dataset.name if "dataset" in cfg and "name" in cfg.dataset else "unk_data"
     )
 
-    _RUN_NAME = f"{timestamp}_{mode}_{model_name}_{dataset_name}"
-    run_dir = Path(logs_root) / _RUN_NAME
-    suffix = 1
-    while run_dir.exists():
-        _RUN_NAME = f"{timestamp}_{suffix}_{mode}_{model_name}"
-        run_dir = Path(logs_root) / _RUN_NAME
-        suffix += 1
+    _RUN_NAME = f"{mode}_{model_name}_{dataset_name}"
+    
+    from hydra.core.hydra_config import HydraConfig
+    run_dir = Path(HydraConfig.get().runtime.output_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    file_handler = logging.FileHandler(run_dir / "run.log")
+    file_handler = logging.FileHandler(run_dir / "main.log")
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(
         logging.Formatter(

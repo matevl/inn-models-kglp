@@ -3,6 +3,10 @@ defaults:
   - model: inn_ours_mlp
   - _self_
 
+hydra:
+  run:
+    dir: logs/${now:%Y-%m-%d_%H-%M-%S}
+
 mode: "train"
 seed: 42
 device: "auto"

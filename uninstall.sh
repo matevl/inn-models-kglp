@@ -11,6 +11,7 @@ echo -e "  - .venv/"
 echo -e "  - logs/"
 echo -e "  - checkpoints/"
 echo -e "  - datasets/"
+echo -e "  - runs/"
 echo ""
 read -p "Are you sure you want to proceed? (y/N) " -n 1 -r
 echo ""
@@ -22,6 +23,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     rm -rf logs
     rm -rf checkpoints
     rm -rf datasets
+    rm -rf runs
 
     echo -e "${GREEN}Cleanup complete.${NC}"
 else
