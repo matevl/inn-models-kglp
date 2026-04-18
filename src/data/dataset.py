@@ -114,7 +114,7 @@ def load_dataset(dataset_path: str) -> KGDataset:
 
     entity_to_id, relation_to_id = _build_vocab(train_text, valid_text, test_text)
 
-    train = _to_ids(train_text, entity_to_id, relation_to_id, add_inverses=True)
+    train = _to_ids(train_text, entity_to_id, relation_to_id, add_inverses=False)
     valid = _to_ids(valid_text, entity_to_id, relation_to_id, add_inverses=False)
     test = _to_ids(test_text, entity_to_id, relation_to_id, add_inverses=False)
 

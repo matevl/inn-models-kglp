@@ -116,7 +116,7 @@ def save_checkpoint(
 def load_checkpoint(checkpoint_path: Path, device: torch.device) -> Dict[str, Any]:
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
-    return torch.load(checkpoint_path, map_location=device)
+    return torch.load(checkpoint_path, map_location=device, weights_only=False)
 
 
 def setup_tensorboard(tensorboard_dir: str | None, run_name: str | None = None) -> Any:

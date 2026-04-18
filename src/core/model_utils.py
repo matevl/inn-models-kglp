@@ -33,7 +33,7 @@ def load_model_from_checkpoint(
     default_dim: int,
     default_margin: float,
     forced_model_type: str = "auto",
-    hidden_layer_size: int = 2,
+    hidden_layers: list[int] | None = None,
 ) -> tuple[nn.Module, dict, str]:
     """Load model from checkpoint with configuration resolution."""
     checkpoint_data = load_checkpoint(checkpoint_path, device)
@@ -43,7 +43,14 @@ def load_model_from_checkpoint(
     state_dict = checkpoint_data["model_state_dict"]
     model_type = _resolve_model_type(forced_model_type, cfg, state_dict)
 
-    loaded_hidden_coef = int(cfg.get("hidden_layer_size", hidden_layer_size))
+    if hidden_layers is None:
+        hidden_layers = cfg.get("hidden_layers", [])
+
+    # Handle torch.compile "_orig_mod." prefix
+    clean_state_dict = {}
+    for k, v in state_dict.items():
+        clean_key = k.replace("_orig_mod.", "")
+        clean_state_dict[clean_key] = v
 
     model = build_link_predictor(
         model_type=model_type,
@@ -51,7 +58,7 @@ def load_model_from_checkpoint(
         num_relations=int(checkpoint_data["num_relations"]),
         dim=dim,
         margin=margin,
-        hidden_layer_size=loaded_hidden_coef,
+        hidden_layers=hidden_layers,
     ).to(device)
-    model.load_state_dict(state_dict)
+    model.load_state_dict(clean_state_dict)
     return model, checkpoint_data, model_type
