@@ -108,9 +108,12 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
         writer.add_scalar("Loss/train", avg_loss, epoch)
 
         logMsg = f"[EPOCH] Epoch {epoch} finished | train_loss={avg_loss:.6f}"
-        if iter_metrics and "accuracy" in iter_metrics:
-            logMsg += f" | train_accuracy={iter_metrics['accuracy']:.4f}"
-            writer.add_scalar("Accuracy/train", iter_metrics["accuracy"], epoch)
+        
+        # Calculate epoch accuracy if present
+        if iter_metrics and "accuracy" in iter_metrics[(0)]:
+            avg_acc = sum(m["accuracy"] * m["batch_items"] for m in iter_metrics) / sum(m["batch_items"] for m in iter_metrics)
+            logMsg += f" | train_accuracy={avg_acc:.4f}"
+            writer.add_scalar("Accuracy/train", avg_acc, epoch)
 
         LOGGER.info(logMsg)
         log_buffer.append(logMsg)
@@ -136,6 +139,9 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
                     log_buffer.append(
                         f"  -> R_Max: {r_max:.4f} | R_Min: {r_min:.4f} | R_Mean: {r_mean:.4f}"
                     )
+                    
+                    # Log radius metrics
+                    LOGGER.info("[ACTION] Epoch %d Radius -> R_Max: %.4f | R_Min: %.4f | R_Mean: %.4f", epoch, r_max, r_min, r_mean)
 
             recap_str = "\n\t".join(log_buffer)
             LOGGER.info("[ACTION] Recap of last epochs:\n\t%s", recap_str)
