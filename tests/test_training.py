@@ -50,8 +50,6 @@ def test_training_epoch_speed(model_type):
     loader = create_train_dataloader(
         train_triples=train_triples,
         batch_size=batch_size,
-        num_entities=num_entities,
-        num_negatives=32,
         device=torch.device("cpu"),  # Use CPU device for dataloader workers in tests
     )
 
@@ -61,6 +59,8 @@ def test_training_epoch_speed(model_type):
         optimizer=optimizer,
         device=device,
         margin=1.0,
+        num_entities=num_entities,
+        num_negatives=32,
         alpha=1.0,
         loss_type="adversarial",
     )

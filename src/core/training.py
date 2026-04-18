@@ -37,18 +37,11 @@ def sample_negative_triples(
     return neg
 
 
-def create_train_collate_fn(num_entities: int, num_negatives: int):
-    """Creates a collate_fn that samples negatives asynchronously in DataLoader workers."""
+def create_train_collate_fn():
+    """Creates a simple collate_fn returning only positive batches. Sampling is done on GPU."""
 
     def collate_fn(batch):
-        pos_batch = default_collate(batch)
-        neg_batch = sample_negative_triples(
-            pos_batch,
-            num_entities=num_entities,
-            num_negatives=num_negatives,
-            device=torch.device("cpu"),
-        )
-        return pos_batch, neg_batch
+        return default_collate(batch)
 
     return collate_fn
 
@@ -56,11 +49,9 @@ def create_train_collate_fn(num_entities: int, num_negatives: int):
 def create_train_dataloader(
     train_triples: torch.Tensor,
     batch_size: int,
-    num_entities: int,
-    num_negatives: int,
     device: torch.device,
 ) -> DataLoader:
-    """Creates an optimized DataLoader for training with async negative sampling."""
+    """Creates an optimized DataLoader for training."""
     import multiprocessing
 
     available_workers = (
@@ -77,7 +68,7 @@ def create_train_dataloader(
         pin_memory=pin_memory,
         num_workers=num_workers,
         persistent_workers=(num_workers > 0),
-        collate_fn=create_train_collate_fn(num_entities, num_negatives),
+        collate_fn=create_train_collate_fn(),
     )
 
 
@@ -87,6 +78,8 @@ def train_epoch(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     margin: float,
+    num_entities: int,
+    num_negatives: int,
     writer=None,
     epoch: int = 0,
     alpha: float = 1.0,
@@ -96,9 +89,6 @@ def train_epoch(
 ) -> tuple[float, list[dict]]:
     """
     Train for one epoch, optionally logging per-iteration metrics.
-
-    Uses pre-built DataLoader that yields both pos_batch and neg_batch
-    to shift negative sampling overhead to CPU workers.
 
     Returns:
             Tuple of (average_loss, iteration_metrics)
@@ -113,9 +103,15 @@ def train_epoch(
     total_items = 0
     iteration_metrics = []
 
-    for batch_idx, (pos_batch, neg_batch) in enumerate(loader):
+    for batch_idx, pos_batch in enumerate(loader):
         pos_batch = pos_batch.to(device, non_blocking=True)
-        neg_batch = neg_batch.to(device, non_blocking=True)
+        # Sample directly on GPU for performance
+        neg_batch = sample_negative_triples(
+            pos_batch,
+            num_entities=num_entities,
+            num_negatives=num_negatives,
+            device=device,
+        )
 
         optimizer.zero_grad(set_to_none=True)
 

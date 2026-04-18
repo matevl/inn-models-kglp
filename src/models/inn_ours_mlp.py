@@ -140,30 +140,15 @@ class INNLinkPredictor(nn.Module):
         # Compute relation embeddings once (same for pos and neg)
         rc, rr = self.get_relation(pos_triplets[:, 1])
 
-        # Extract unique entities
-        all_entities = torch.cat(
-            [
-                pos_triplets[:, 0],
-                pos_triplets[:, 2],
-                neg_triplets[:, :, 0].flatten(),
-                neg_triplets[:, :, 2].flatten(),
-            ]
-        )
-        unique_entities, inverse_indices = torch.unique(
-            all_entities, return_inverse=True
-        )
+        # Compute embeddings for all entities rather than isolating unique ones
+        num_ent = self.entity_encoder.emb_c.num_embeddings
+        all_entity_ids = torch.arange(num_ent, device=pos_triplets.device)
+        u_c, u_r = self.entity_encoder(all_entity_ids)
 
-        # Compute embeddings only for unique entities
-        u_c, u_r = self.entity_encoder(unique_entities)
-
-        # Map back embeddings
-        B = pos_triplets.size(0)
-        num_neg = neg_triplets.size(1)
-
-        pos_h_idx = inverse_indices[:B]
-        pos_t_idx = inverse_indices[B : B * 2]
-        neg_h_idx = inverse_indices[B * 2 : B * 2 + B * num_neg].view(B, num_neg)
-        neg_t_idx = inverse_indices[B * 2 + B * num_neg :].view(B, num_neg)
+        pos_h_idx = pos_triplets[:, 0]
+        pos_t_idx = pos_triplets[:, 2]
+        neg_h_idx = neg_triplets[:, :, 0]
+        neg_t_idx = neg_triplets[:, :, 2]
 
         hc = u_c[pos_h_idx]
         hr = u_r[pos_h_idx]

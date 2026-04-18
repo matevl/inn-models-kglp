@@ -77,6 +77,8 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
 
     LOGGER.info(f"[ACTION] Starting training for {cfg.training.epochs} epochs...")
     model.train()
+    model = torch.compile(model)
+    scaler = torch.amp.GradScaler(device.type) if device.type == "cuda" else None
 
     epoch_loss_total = 0.0
     log_buffer = []
@@ -84,8 +86,6 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
     train_loader = create_train_dataloader(
         train_triples=dataset.train,
         batch_size=cfg.training.batch_size,
-        num_entities=dataset.num_entities,
-        num_negatives=cfg.training.num_negatives_train,
         device=device,
     )
 
@@ -97,10 +97,13 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             optimizer=optimizer,
             device=device,
             margin=model_cfg.margin,
+            num_entities=dataset.num_entities,
+            num_negatives=cfg.training.num_negatives_train,
             alpha=model_cfg.alpha,
             loss_type=model_cfg.loss_type,
             log_interval=cfg.training.log_interval,
             epoch=epoch,
+            scaler=scaler,
         )
 
         # Add Tensorboard scalar logs
@@ -108,10 +111,12 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
         writer.add_scalar("Loss/train", avg_loss, epoch)
 
         logMsg = f"[EPOCH] Epoch {epoch} finished | train_loss={avg_loss:.6f}"
-        
+
         # Calculate epoch accuracy if present
         if iter_metrics and "accuracy" in iter_metrics[(0)]:
-            avg_acc = sum(m["accuracy"] * m["batch_items"] for m in iter_metrics) / sum(m["batch_items"] for m in iter_metrics)
+            avg_acc = sum(m["accuracy"] * m["batch_items"] for m in iter_metrics) / sum(
+                m["batch_items"] for m in iter_metrics
+            )
             logMsg += f" | train_accuracy={avg_acc:.4f}"
             writer.add_scalar("Accuracy/train", avg_acc, epoch)
 
@@ -139,9 +144,15 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
                     log_buffer.append(
                         f"  -> R_Max: {r_max:.4f} | R_Min: {r_min:.4f} | R_Mean: {r_mean:.4f}"
                     )
-                    
+
                     # Log radius metrics
-                    LOGGER.info("[ACTION] Epoch %d Radius -> R_Max: %.4f | R_Min: %.4f | R_Mean: %.4f", epoch, r_max, r_min, r_mean)
+                    LOGGER.info(
+                        "[ACTION] Epoch %d Radius -> R_Max: %.4f | R_Min: %.4f | R_Mean: %.4f",
+                        epoch,
+                        r_max,
+                        r_min,
+                        r_mean,
+                    )
 
             recap_str = "\n\t".join(log_buffer)
             LOGGER.info("[ACTION] Recap of last epochs:\n\t%s", recap_str)
