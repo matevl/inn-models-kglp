@@ -1,7 +1,6 @@
 from __future__ import annotations
 import logging
 import random
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
@@ -22,7 +21,9 @@ class _ActionOnlyFilter(logging.Filter):
 def configure_logging() -> logging.Logger:
     logger = logging.getLogger("inn-models-kglp")
     logger.setLevel(logging.INFO)
-    logger.propagate = False  # Prevent propagating to Hydra's root logger to avoid duplicated logs
+    logger.propagate = (
+        False  # Prevent propagating to Hydra's root logger to avoid duplicated logs
+    )
     if logger.handlers:
         return logger
     try:
@@ -51,8 +52,9 @@ def start_run_logging(cfg: DictConfig) -> Path:
     )
 
     _RUN_NAME = f"{mode}_{model_name}_{dataset_name}"
-    
+
     from hydra.core.hydra_config import HydraConfig
+
     run_dir = Path(HydraConfig.get().runtime.output_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
 

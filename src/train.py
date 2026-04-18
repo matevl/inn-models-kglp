@@ -5,7 +5,7 @@ from omegaconf import DictConfig
 
 import torch
 
-from core.training import train_epoch
+from core.training import train_epoch, create_train_dataloader
 from data.dataset import load_dataset
 from models import build_link_predictor
 from utils.runtime import (
@@ -81,19 +81,24 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
     epoch_loss_total = 0.0
     log_buffer = []
 
+    train_loader = create_train_dataloader(
+        train_triples=dataset.train,
+        batch_size=cfg.training.batch_size,
+        num_entities=dataset.num_entities,
+        num_negatives=cfg.training.num_negatives_train,
+        device=device,
+    )
+
     # Custom training loop to show logs dynamically
     for epoch in range(start_epoch, start_epoch + cfg.training.epochs):
         avg_loss, iter_metrics = train_epoch(
             model=model,
+            loader=train_loader,
             optimizer=optimizer,
-            train_triples=dataset.train,
-            batch_size=cfg.training.batch_size,
-            num_entities=dataset.num_entities,
+            device=device,
             margin=model_cfg.margin,
-            num_negatives=cfg.training.num_negatives_train,
             alpha=model_cfg.alpha,
             loss_type=model_cfg.loss_type,
-            device=device,
             log_interval=cfg.training.log_interval,
             epoch=epoch,
         )
@@ -105,8 +110,8 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
         logMsg = f"[EPOCH] Epoch {epoch} finished | train_loss={avg_loss:.6f}"
         if iter_metrics and "accuracy" in iter_metrics:
             logMsg += f" | train_accuracy={iter_metrics['accuracy']:.4f}"
-            writer.add_scalar("Accuracy/train", iter_metrics['accuracy'], epoch)
-        
+            writer.add_scalar("Accuracy/train", iter_metrics["accuracy"], epoch)
+
         LOGGER.info(logMsg)
         log_buffer.append(logMsg)
 
@@ -128,8 +133,10 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
                     writer.add_scalar("Radius/Min", r_min, epoch)
                     writer.add_scalar("Radius/Mean", r_mean, epoch)
 
-                    log_buffer.append(f"  -> R_Max: {r_max:.4f} | R_Min: {r_min:.4f} | R_Mean: {r_mean:.4f}")
-            
+                    log_buffer.append(
+                        f"  -> R_Max: {r_max:.4f} | R_Min: {r_min:.4f} | R_Mean: {r_mean:.4f}"
+                    )
+
             recap_str = "\n\t".join(log_buffer)
             LOGGER.info("[ACTION] Recap of last epochs:\n\t%s", recap_str)
             log_buffer.clear()

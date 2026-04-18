@@ -11,7 +11,7 @@ def main(cfg: DictConfig):
     LOGGER = configure_logging()
 
     # Since hydra puts config at top level, we adapt it
-    run_dir = start_run_logging(cfg)
+    start_run_logging(cfg)
 
     # We can pass an action like mode=train, test, train_init
     mode = cfg.get("mode", "train")
