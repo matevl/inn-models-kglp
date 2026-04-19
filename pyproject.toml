@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inn-models-kglp"
+version = "0.1.0"
+description = "Intervalla-KGE: Link Prediction with Interval Neural Networks"
+authors = [
+  { name = "Matteo Evola", email = "matteo.evola@epita.fr" },
+]
+dependencies = [
+    "torch",
+    "torch-geometric",
+    "dgl",
+    "tensorboard",
+    "matplotlib",
+    "rich",
+    "huggingface_hub",
+    "pandas",
+    "tqdm",
+    "scikit-learn",
+    "hydra-core",
+    "pytest",
+    "pre-commit",
+    "ruff"
+]
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]

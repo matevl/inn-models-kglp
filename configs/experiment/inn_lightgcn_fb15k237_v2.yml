@@ -1,0 +1,23 @@
+# @package _global_
+defaults:
+  - override /dataset: fb15k237
+  - override /model: inn_lightgcn
+
+model:
+  loss_type: "margin"
+
+training:
+  epochs: 500
+  batch_size: 2048
+  lr: 0.001
+  num_negatives_train: 128
+  log_interval: 10
+
+evaluation:
+  split: "test"
+  num_negatives: -1
+  entity_chunk_size: 512
+  batch_size: 512
+
+checkpoint: "inn_lightgcn_fb15k237_v2.pt"
+experiment_name: "inn_lightgcn_fb15k237_v2"

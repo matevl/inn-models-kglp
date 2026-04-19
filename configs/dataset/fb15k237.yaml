@@ -1,0 +1,4 @@
+name: "fb15k-237"
+path: "datasets/fb15k-237"
+num_entities: 14541
+num_relations: 237
