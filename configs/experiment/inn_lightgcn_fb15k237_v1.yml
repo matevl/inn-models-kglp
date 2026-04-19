@@ -1,10 +1,10 @@
 # @package _global_
 defaults:
   - override /dataset: fb15k237
-  - override /model: inn_ours_mlp
+  - override /model: inn_lightgcn
 
 model:
-  loss_type: "infonce"
+  loss_type: "logsumexp"
 
 training:
   epochs: 500
@@ -19,5 +19,5 @@ evaluation:
   entity_chunk_size: 512
   batch_size: 512
 
-checkpoint: "inn_ours_mlp_fb15k237_v4.pt"
-experiment_name: "inn_ours_mlp_fb15k237_v4"
+checkpoint: "inn_lightgcn_fb15k237_v1.pt"
+experiment_name: "inn_lightgcn_fb15k237_v1"

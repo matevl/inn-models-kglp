@@ -15,8 +15,9 @@ training:
 
 evaluation:
   split: "test"
-  num_negatives: 1024
-  entity_chunk_size: 1024
+  num_negatives: -1
+  entity_chunk_size: 512
+  batch_size: 512
 
 checkpoint: "inn_ours_mlp_fb15k237_v2.pt"
 experiment_name: "inn_ours_mlp_fb15k237_v2"
