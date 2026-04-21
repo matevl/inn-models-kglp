@@ -127,3 +127,13 @@ This work builds upon [Schlichtkrull et al. (2018)](https://arxiv.org/abs/1703.0
   organization={Springer}
 }
 ```
+
+This project also integrates and implements components from [CompGCN](https://github.com/malllabiisc/CompGCN):
+```bibtex
+@article{vashishth2019composition,
+  title={Composition-based multi-relational graph convolutional networks},
+  author={Vashishth, Shikhar and Sanyal, Soumya and Nitin, Vikram and Talukdar, Partha},
+  journal={arXiv preprint arXiv:1911.03082},
+  year={2019}
+}
+```
