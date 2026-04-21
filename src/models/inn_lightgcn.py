@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .inn_ours_mlp import IntervalEntityEmbedding
-from src.core.intervals import Interval
+from core.intervals import Interval
 
 
 class TInterval:
