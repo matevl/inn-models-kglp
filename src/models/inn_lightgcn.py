@@ -103,7 +103,11 @@ class INNLightGCNLinkPredictor(nn.Module):
         deg_inv_sqrt[deg_inv_sqrt == float("inf")] = 0
 
         edge_weight = deg_inv_sqrt[row] * deg_inv_sqrt[col]
-        A = torch.sparse_coo_tensor(edges, edge_weight, (num_ent, num_ent)).to(device)
+        
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*Sparse invariant checks.*")
+            A = torch.sparse_coo_tensor(edges, edge_weight, (num_ent, num_ent)).to(device)
         self.A = A
 
     def get_relation(self, idx: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:

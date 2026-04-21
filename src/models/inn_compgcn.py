@@ -80,24 +80,26 @@ class INNCompGCNLinkPredictor(nn.Module):
         edges_out = train_triples[:, [2, 0]].t().to(device)
         self_loops = torch.arange(num_ent, device=device).unsqueeze(0).repeat(2, 1)
 
-        def make_sparse(edges):
-            row, col = edges
-            deg = torch.bincount(row, minlength=num_ent).float()
-            deg_inv_sqrt = deg.pow(-0.5)
-            deg_inv_sqrt[deg_inv_sqrt == float("inf")] = 0
-            edge_weight = deg_inv_sqrt[row] * deg_inv_sqrt[col]
-            return torch.sparse_coo_tensor(edges, edge_weight, (num_ent, num_ent)).to(
-                device
-            )
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*Sparse invariant checks.*")
+            
+            def make_sparse(edges):
+                row, col = edges
+                deg = torch.bincount(row, minlength=num_ent).float()
+                deg_inv_sqrt = deg.pow(-0.5)
+                deg_inv_sqrt[deg_inv_sqrt == float("inf")] = 0
+                edge_weight = deg_inv_sqrt[row] * deg_inv_sqrt[col]
+                return torch.sparse_coo_tensor(edges, edge_weight, (num_ent, num_ent)).to(device)
 
-        self.A_in = make_sparse(edges_in)
-        self.A_out = make_sparse(edges_out)
+            self.A_in = make_sparse(edges_in)
+            self.A_out = make_sparse(edges_out)
 
-        # Self loops without normalization (just identity)
-        loop_weight = torch.ones(num_ent, device=device)
-        self.A_loop = torch.sparse_coo_tensor(
-            self_loops, loop_weight, (num_ent, num_ent)
-        ).to(device)
+            # Self loops without normalization (just identity)
+            loop_weight = torch.ones(num_ent, device=device)
+            self.A_loop = torch.sparse_coo_tensor(
+                self_loops, loop_weight, (num_ent, num_ent)
+            ).to(device)
 
     def get_relation(self, idx: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         c_r = self.rel_center(idx)
@@ -115,6 +117,24 @@ class INNCompGCNLinkPredictor(nn.Module):
             H = self.layer(self.A_in, self.A_out, self.A_loop, H)
             return H.c, H.r
         return u_c, u_r
+
+    def inn_score(
+        self,
+        h_idx: torch.Tensor,
+        r_idx: torch.Tensor,
+        t_idx: torch.Tensor,
+    ) -> torch.Tensor:
+        u_c, u_r = self.compute_all_embeddings()
+        hc, hr = u_c[h_idx], u_r[h_idx]
+        tc, tr = u_c[t_idx], u_r[t_idx]
+        rc, rr = self.get_relation(r_idx)
+
+        pred_c = hc + rc
+        pred_r = hr + rr
+
+        distance = torch.norm(pred_c - tc, p=1, dim=-1)
+        max_radius_sum = torch.norm(pred_r + tr, p=1, dim=-1)
+        return max_radius_sum - distance
 
     def forward(
         self, pos_triplets: torch.Tensor, neg_triplets: torch.Tensor
