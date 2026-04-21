@@ -70,6 +70,9 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             hidden_layers=model_cfg.get("hidden_layers", []),
         ).to(device)
 
+    if hasattr(model, "build_graph"):
+        model.build_graph(dataset.train)
+
     if hasattr(model, "entity_encoder") and hasattr(model.entity_encoder, "entity_rho"):
         optimizer = torch.optim.Adam(model.parameters(), lr=cfg.training.lr)
     else:

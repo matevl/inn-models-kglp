@@ -85,7 +85,7 @@ def evaluate_approx_ranking(
                         size=(collisions.sum().item(),),
                         device=device,
                     )
-                    
+
         # Left Rank (negate heads)
         neg_heads = torch.randint(
             low=0,
@@ -110,17 +110,23 @@ def evaluate_approx_ranking(
                     )
 
         max_chunk_elems = max(entity_chunk_size, 64 * num_negatives)
-        
+
         # Right Rank evaluation
         rep_h_rt = true_h.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
         rep_r_rt = true_r.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
         flat_t_rt = neg_tails.reshape(-1)
-        
+
         neg_scores_list_rt = []
         for start_idx in range(0, rep_h_rt.size(0), max_chunk_elems):
             end_idx = start_idx + max_chunk_elems
-            neg_scores_list_rt.append(model.inn_score(rep_h_rt[start_idx:end_idx], rep_r_rt[start_idx:end_idx], flat_t_rt[start_idx:end_idx]))
-        
+            neg_scores_list_rt.append(
+                model.inn_score(
+                    rep_h_rt[start_idx:end_idx],
+                    rep_r_rt[start_idx:end_idx],
+                    flat_t_rt[start_idx:end_idx],
+                )
+            )
+
         neg_scores_rt = torch.cat(neg_scores_list_rt, dim=0).reshape(bsz, num_negatives)
         ranks_rt = 1 + torch.sum(neg_scores_rt > true_scores.unsqueeze(1), dim=1)
 
@@ -128,12 +134,18 @@ def evaluate_approx_ranking(
         flat_h_lf = neg_heads.reshape(-1)
         rep_r_lf = true_r.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
         rep_t_lf = true_t.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
-        
+
         neg_scores_list_lf = []
         for start_idx in range(0, flat_h_lf.size(0), max_chunk_elems):
             end_idx = start_idx + max_chunk_elems
-            neg_scores_list_lf.append(model.inn_score(flat_h_lf[start_idx:end_idx], rep_r_lf[start_idx:end_idx], rep_t_lf[start_idx:end_idx]))
-            
+            neg_scores_list_lf.append(
+                model.inn_score(
+                    flat_h_lf[start_idx:end_idx],
+                    rep_r_lf[start_idx:end_idx],
+                    rep_t_lf[start_idx:end_idx],
+                )
+            )
+
         neg_scores_lf = torch.cat(neg_scores_list_lf, dim=0).reshape(bsz, num_negatives)
         ranks_lf = 1 + torch.sum(neg_scores_lf > true_scores.unsqueeze(1), dim=1)
 
@@ -204,7 +216,7 @@ def evaluate_exact_ranking_all_entities(
         true_h = batch[:, 0]
         true_r = batch[:, 1]
         true_t = batch[:, 2]
-        
+
         true_scores = model.inn_score(true_h, true_r, true_t)
 
         rank_counts_rt = torch.zeros(bsz, dtype=torch.long, device=device)
@@ -215,42 +227,60 @@ def evaluate_exact_ranking_all_entities(
             chunk_size = end - start
 
             chunk_ents = torch.arange(start, end, device=device)
-            
+
             # Right Rank chunk
             rep_h_rt = true_h.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
             rep_r_rt = true_r.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
             rep_t_rt = chunk_ents.unsqueeze(0).expand(bsz, -1).reshape(-1)
-            
-            chunk_scores_rt = model.inn_score(rep_h_rt, rep_r_rt, rep_t_rt).reshape(bsz, chunk_size)
+
+            chunk_scores_rt = model.inn_score(rep_h_rt, rep_r_rt, rep_t_rt).reshape(
+                bsz, chunk_size
+            )
 
             # Left Rank chunk
             rep_h_lf = chunk_ents.unsqueeze(0).expand(bsz, -1).reshape(-1)
             rep_r_lf = true_r.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
             rep_t_lf = true_t.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
-            
-            chunk_scores_lf = model.inn_score(rep_h_lf, rep_r_lf, rep_t_lf).reshape(bsz, chunk_size)
+
+            chunk_scores_lf = model.inn_score(rep_h_lf, rep_r_lf, rep_t_lf).reshape(
+                bsz, chunk_size
+            )
 
             for i in range(bsz):
                 h, r, t = true_h[i].item(), true_r[i].item(), true_t[i].item()
-                
+
                 # Filter Right Rank
                 if (h, r) in filter_hr:
                     known_tails = filter_hr[(h, r)]
                     known_tails_to_mask = known_tails[known_tails != t]
-                    known_in_chunk = known_tails_to_mask[(known_tails_to_mask >= start) & (known_tails_to_mask < end)] - start
+                    known_in_chunk = (
+                        known_tails_to_mask[
+                            (known_tails_to_mask >= start) & (known_tails_to_mask < end)
+                        ]
+                        - start
+                    )
                     if len(known_in_chunk) > 0:
                         chunk_scores_rt[i, known_in_chunk] = -1e9
-                        
+
                 # Filter Left Rank
                 if (r, t) in filter_rt:
                     known_heads = filter_rt[(r, t)]
                     known_heads_to_mask = known_heads[known_heads != h]
-                    known_in_chunk = known_heads_to_mask[(known_heads_to_mask >= start) & (known_heads_to_mask < end)] - start
+                    known_in_chunk = (
+                        known_heads_to_mask[
+                            (known_heads_to_mask >= start) & (known_heads_to_mask < end)
+                        ]
+                        - start
+                    )
                     if len(known_in_chunk) > 0:
                         chunk_scores_lf[i, known_in_chunk] = -1e9
 
-            rank_counts_rt += torch.sum(chunk_scores_rt > true_scores.unsqueeze(1), dim=1)
-            rank_counts_lf += torch.sum(chunk_scores_lf > true_scores.unsqueeze(1), dim=1)
+            rank_counts_rt += torch.sum(
+                chunk_scores_rt > true_scores.unsqueeze(1), dim=1
+            )
+            rank_counts_lf += torch.sum(
+                chunk_scores_lf > true_scores.unsqueeze(1), dim=1
+            )
 
         ranks_rt = 1 + rank_counts_rt
         ranks_lf = 1 + rank_counts_lf

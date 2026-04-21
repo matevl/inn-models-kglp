@@ -4,8 +4,53 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
 from .inn_ours_mlp import IntervalEntityEmbedding
+from src.core.intervals import Interval
+
+
+class TInterval:
+    def __init__(self, c, r):
+        self.c = c
+        self.r = torch.clamp(r, min=0)
+
+    def lu(self):
+        return self.c - self.r, self.c + self.r
+
+    @staticmethod
+    def from_lu(lo, hi):
+        return TInterval((lo + hi) / 2, (hi - lo) / 2)
+
+
+class IntervalGCNLayer(nn.Module):
+    def __init__(self, i, o, act="relu"):
+        super().__init__()
+        self.W = nn.Linear(i, o, bias=False)
+        self.act = act
+
+    def forward(self, A, H: TInterval):
+        Zc = self.W(H.c)
+        Zr = H.r @ self.W.weight.abs().t()
+        C = A @ Zc
+        R = A.abs() @ Zr
+        Hn = TInterval(C, R)
+        if self.act == "relu":
+            lo, hi = Hn.lu()
+            return TInterval.from_lu(F.relu(lo), F.relu(hi))
+        return Hn
+
+
+class IntervalLightGCN(nn.Module):
+    def __init__(self, i, h, o, layers=2):
+        super().__init__()
+        dims = [i] + [h] * (layers - 1) + [o]
+        self.layers = nn.ModuleList()
+        for a, b in zip(dims[:-1], dims[1:]):
+            self.layers.append(IntervalGCNLayer(a, b, act="relu"))
+
+    def forward(self, A, H):
+        for L in self.layers:
+            H = L(A, H)
+        return H
 
 
 class INNLightGCNLinkPredictor(nn.Module):
@@ -23,15 +68,52 @@ class INNLightGCNLinkPredictor(nn.Module):
         self.entity_emb = IntervalEntityEmbedding(num_entities, dim, init_rho=init_rho)
         self.rel_center = nn.Embedding(num_relations, dim)
         self.rel_rho = nn.Embedding(num_relations, dim)
+        self.net = IntervalLightGCN(dim, max(dim, 64), dim, layers=2)
         self.margin = margin
 
         nn.init.uniform_(self.rel_center.weight, -0.1, 0.1)
         nn.init.constant_(self.rel_rho.weight, init_rho)
+        self.register_buffer("A", None, persistent=False)
+
+    def build_graph(self, train_triples: torch.Tensor) -> None:
+        """Construit et stocke la matrice d'adjacence normalisée."""
+        num_ent = self.entity_emb.center.num_embeddings
+        device = self.entity_emb.center.weight.device
+
+        edges = train_triples[:, [0, 2]].t()  # 2 x E (sans relations)
+        edges = edges.to(device)
+        edges = torch.cat([edges, edges[[1, 0]]], dim=1)  # Graphe non orienté
+
+        self_loops = torch.arange(num_ent, device=device).unsqueeze(0).repeat(2, 1)
+        edges = torch.cat([edges, self_loops], dim=1)
+        edges = torch.unique(edges, dim=1)
+
+        row, col = edges
+        deg = torch.bincount(row, minlength=num_ent).float()
+        deg_inv_sqrt = deg.pow(-0.5)
+        deg_inv_sqrt[deg_inv_sqrt == float("inf")] = 0
+
+        edge_weight = deg_inv_sqrt[row] * deg_inv_sqrt[col]
+        A = torch.sparse_coo_tensor(edges, edge_weight, (num_ent, num_ent)).to(device)
+        self.A = A
 
     def get_relation(self, idx: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         c_r = self.rel_center(idx)
         r_r = F.softplus(self.rel_rho(idx))
         return c_r, r_r
+
+    def compute_all_embeddings(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Récupère les intervalles après passage GCN (si A est dispo)."""
+        num_ent = self.entity_emb.center.num_embeddings
+        device = self.entity_emb.center.weight.device
+        all_entity_ids = torch.arange(num_ent, device=device)
+        u_c, u_r = self.entity_emb(all_entity_ids)
+
+        if self.A is not None:
+            H = TInterval(u_c, u_r)
+            H = self.net(self.A, H)
+            return H.c, H.r
+        return u_c, u_r
 
     def inn_score(
         self,
@@ -39,9 +121,10 @@ class INNLightGCNLinkPredictor(nn.Module):
         r_idx: torch.Tensor,
         t_idx: torch.Tensor,
     ) -> torch.Tensor:
-        hc, hr = self.entity_emb(h_idx)
+        u_c, u_r = self.compute_all_embeddings()
+        hc, hr = u_c[h_idx], u_r[h_idx]
+        tc, tr = u_c[t_idx], u_r[t_idx]
         rc, rr = self.get_relation(r_idx)
-        tc, tr = self.entity_emb(t_idx)
 
         pred_c = hc + rc
         pred_r = hr + rr
@@ -55,13 +138,9 @@ class INNLightGCNLinkPredictor(nn.Module):
         pos_triplets: torch.Tensor,
         neg_triplets: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        # Compute relation embeddings once (same for pos and neg)
         rc, rr = self.get_relation(pos_triplets[:, 1])
 
-        # Compute embeddings for all entities rather than isolating unique ones
-        num_ent = self.entity_emb.center.num_embeddings
-        all_entity_ids = torch.arange(num_ent, device=pos_triplets.device)
-        u_c, u_r = self.entity_emb(all_entity_ids)
+        u_c, u_r = self.compute_all_embeddings()
 
         pos_h_idx = pos_triplets[:, 0]
         pos_t_idx = pos_triplets[:, 2]
