@@ -128,7 +128,8 @@ This work builds upon [Schlichtkrull et al. (2018)](https://arxiv.org/abs/1703.0
 }
 ```
 
-This project also integrates and implements components from [CompGCN](https://github.com/malllabiisc/CompGCN):
+This project also integrates and implements components from [CompGCN](https://github.com/malllabiisc/CompGCN) and [RotatE](https://github.com/DeepGraphLearning/KnowledgeGraphEmbedding):
+
 ```bibtex
 @article{vashishth2019composition,
   title={Composition-based multi-relational graph convolutional networks},
