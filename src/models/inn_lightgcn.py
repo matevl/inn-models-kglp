@@ -30,8 +30,17 @@ class IntervalGCNLayer(nn.Module):
     def forward(self, A, H: TInterval):
         Zc = self.W(H.c)
         Zr = H.r @ self.W.weight.abs().t()
-        C = A @ Zc
-        R = A.abs() @ Zr
+        
+        # PyTorch doesn't support sparse mm in FP16, disable autocast
+        device_type = Zc.device.type
+        with torch.autocast(device_type=device_type if device_type != 'mps' else 'cpu', enabled=False):
+            A_f32, Zc_f32, Zr_f32 = A.to(torch.float32), Zc.to(torch.float32), Zr.to(torch.float32)
+            C_f32 = A_f32 @ Zc_f32
+            R_f32 = A_f32.abs() @ Zr_f32
+            
+        C = C_f32.to(Zc.dtype)
+        R = R_f32.to(Zr.dtype)
+        
         Hn = TInterval(C, R)
         if self.act == "relu":
             lo, hi = Hn.lu()

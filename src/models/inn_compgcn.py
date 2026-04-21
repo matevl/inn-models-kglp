@@ -27,8 +27,19 @@ class CompGCNIntervalLayer(nn.Module):
         r_loop = H.r @ self.W_loop.weight.abs().t()
 
         # Aggregation
-        c_agg = A_in @ c_in + A_out @ c_out + A_loop @ c_loop
-        r_agg = A_in.abs() @ r_in + A_out.abs() @ r_out + A_loop.abs() @ r_loop
+        # PyTorch does not support sparse mm in FP16, so we must disable autocast and run in FP32
+        device_type = c_in.device.type
+        with torch.autocast(device_type=device_type if device_type != 'mps' else 'cpu', enabled=False):
+            A_in_f32, c_in_f32 = A_in.to(torch.float32), c_in.to(torch.float32)
+            A_out_f32, c_out_f32 = A_out.to(torch.float32), c_out.to(torch.float32)
+            A_loop_f32, c_loop_f32 = A_loop.to(torch.float32), c_loop.to(torch.float32)
+            r_in_f32, r_out_f32, r_loop_f32 = r_in.to(torch.float32), r_out.to(torch.float32), r_loop.to(torch.float32)
+            
+            c_agg_f32 = A_in_f32 @ c_in_f32 + A_out_f32 @ c_out_f32 + A_loop_f32 @ c_loop_f32
+            r_agg_f32 = A_in_f32.abs() @ r_in_f32 + A_out_f32.abs() @ r_out_f32 + A_loop_f32.abs() @ r_loop_f32
+            
+        c_agg = c_agg_f32.to(c_in.dtype)
+        r_agg = r_agg_f32.to(r_in.dtype)
 
         # Activation (ReLU)
         Hn = TInterval(c_agg, r_agg)
