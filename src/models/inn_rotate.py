@@ -29,6 +29,52 @@ class INNRotatELinkPredictor(nn.Module):
         r_r = F.softplus(self.rel_rho(idx))
         return c_r, r_r
 
+    def inn_score(
+        self,
+        h_idx: torch.Tensor,
+        r_idx: torch.Tensor,
+        t_idx: torch.Tensor,
+    ) -> torch.Tensor:
+        pi = math.pi
+        
+        # Relations only have phase, so we project them to phase angles
+        rc_phase, rr_phase_raw = self.get_relation(r_idx)
+        rc_phase = rc_phase / (self.embedding_range / pi)
+        rr_phase = rr_phase_raw / (self.embedding_range / pi)
+
+        rc_re = torch.cos(rc_phase)
+        rc_im = torch.sin(rc_phase)
+        # simplistic bound mapping for interval RotatE
+        rr_bound = torch.abs(rr_phase)
+        
+        hc, hr = self.entity_emb(h_idx)
+        tc, tr = self.entity_emb(t_idx)
+
+        hc_re, hc_im = torch.chunk(hc, 2, dim=-1)
+        hr_re, hr_im = torch.chunk(hr, 2, dim=-1)
+        
+        tc_re, tc_im = torch.chunk(tc, 2, dim=-1)
+        tr_re, tr_im = torch.chunk(tr, 2, dim=-1)
+
+        # Rotation application center
+        pred_c_re = hc_re * rc_re - hc_im * rc_im
+        pred_c_im = hc_re * rc_im + hc_im * rc_re
+        
+        # Simple interval propagation bound (rough upper bound via triangle ineq)
+        pred_r_re = hr_re * torch.abs(rc_re) + hr_im * torch.abs(rc_im) + rr_bound * (torch.abs(hc_re) + torch.abs(hc_im))
+        pred_r_im = hr_re * torch.abs(rc_im) + hr_im * torch.abs(rc_re) + rr_bound * (torch.abs(hc_re) + torch.abs(hc_im))
+
+        diff_c_re = pred_c_re - tc_re
+        diff_c_im = pred_c_im - tc_im
+        
+        diff_r_re = pred_r_re + tr_re
+        diff_r_im = pred_r_im + tr_im
+
+        dist_c = torch.norm(torch.stack([diff_c_re, diff_c_im], dim=0), dim=0).sum(dim=-1)
+        dist_r = torch.norm(torch.stack([diff_r_re, diff_r_im], dim=0), dim=0).sum(dim=-1)
+
+        return dist_r - dist_c # Max radius bound - distance
+
     def forward(self, pos_triplets: torch.Tensor, neg_triplets: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         pi = math.pi
         
