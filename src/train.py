@@ -91,6 +91,10 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
         device=device,
     )
 
+    best_loss = float('inf')
+    patience_counter = 0
+    patience_limit = 30
+
     # Custom training loop to show logs dynamically
     for epoch in range(start_epoch, start_epoch + cfg.training.epochs):
         avg_loss, iter_metrics = train_epoch(
@@ -165,6 +169,28 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
                 num_relations=dataset.num_relations,
             )
             LOGGER.info("[ACTION] Saved checkpoint block at Epoch %d", epoch)
+
+        # Early stopping logic
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            patience_counter = 0
+            # Optional: save best model here
+        else:
+            patience_counter += 1
+
+        if patience_counter >= patience_limit:
+            LOGGER.info("[STOP] Model hasn't learned for %d continuous epochs. Stopping early at epoch %d.", patience_limit, epoch)
+            save_checkpoint(
+                checkpoint_path=ckpt_path,
+                model=model,
+                optimizer=optimizer,
+                epoch=epoch,
+                config=dict(model_cfg),
+                num_entities=dataset.num_entities,
+                num_relations=dataset.num_relations,
+            )
+            LOGGER.info("[ACTION] Early stopping checkpoint saved to %s", ckpt_path)
+            break
 
     writer.close()
 
