@@ -102,7 +102,7 @@ def train_epoch(
     writer=None,
     epoch: int = 0,
     alpha: float = 1.0,
-    loss_type: str = "adversarial",
+    loss_type: str = "self_adversarial",
     log_interval: int = 10,
     scaler: torch.amp.GradScaler | None = None,
 ) -> tuple[float, list[dict]]:
@@ -148,7 +148,7 @@ def train_epoch(
 
         with torch.autocast(device_type=device.type, enabled=(scaler is not None)):
             pos_scores, neg_scores = model(pos_batch, neg_batch)
-            loss_fn = LOSS_TYPE.get(loss_type, LOSS_TYPE["adversarial"])
+            loss_fn = LOSS_TYPE.get(loss_type, LOSS_TYPE["self_adversarial"])
             loss = loss_fn(pos_scores, neg_scores, margin=margin, alpha=alpha)
 
         if scaler is not None:

@@ -20,6 +20,7 @@ The explicit goal of this project is to **compare different approaches of INN** 
 
 ## Installation & Setup
 
+### Standard Installation
 **Requirements:**
 - Python 3.10+
 - PyTorch 2.0+
@@ -35,6 +36,15 @@ make install
 make setup
 ```
 
+### Nix / NixOS Installation (Recommended)
+This project comes with a fully declarative `flake.nix` that automatically sets up the environment, an isolated Python 3.11, `uv`, and all C++ headers required for `torch.compile`. It also automatically configures **Hydra bash auto-completion**.
+
+Simply run:
+```bash
+nix develop
+```
+*(This will drop you into a shell with a `.venv` pre-installed and activated. You can now press `<TAB>` for Hydra autocomplete!)*
+
 ## Configuration & Usage (Hydra)
 
 This project has migrated to `hydra-core` for robust experiment tracking. Instead of modifying argparse flags, you launch `src/main.py` with overrides or by creating new YAML files.
@@ -44,7 +54,7 @@ All configurations live inside the `configs/` directory:
 - `configs/config.yaml`: The main configuration. Contains defaults for training, evaluation, and I/O logic.
 - `configs/dataset/`: Definitions for datasets (`fb15k237.yaml`, `wn18rr.yaml`).
 - `configs/model/`: Model architectures and hyperparams (`inn_ours_mlp.yaml`, `inn_lightgcn.yaml`).
-- `configs/experiment/`: Pre-configured environments that combine models, datasets, and parameters (`inn_ours_mlp_v1.yaml`).
+- `configs/experiments/`: Pre-configured environments grouped by model and dataset (`inn_ours_mlp/fb15k237/inn_ours_mlp_v5_fb15k237.yaml`).
 
 This allows you to create an experiment YAML, tweak a specific property like `hidden_layers: [500, 2000, 500]`, and run it without touching the CLI every time.
 
@@ -52,10 +62,10 @@ This allows you to create an experiment YAML, tweak a specific property like `hi
 
 ```bash
 # Initialize and train INN_Ours_MLP model with standard config
-python src/main.py +experiment=inn_ours_mlp_v1
+python src/main.py +experiments=inn_ours_mlp/fb15k237/inn_ours_mlp_v1_fb15k237
 
-# Change Dataset to WN18RR and Override Batch Size on the fly
-python src/main.py +experiment=inn_ours_mlp_v1 dataset=wn18rr training.batch_size=512
+# Override Batch Size on the fly
+python src/main.py +experiments=inn_ours_mlp/fb15k237/inn_ours_mlp_v1_fb15k237 training.batch_size=512
 
 # Run LightGCN baseline instead
 python src/main.py mode=train model=inn_lightgcn

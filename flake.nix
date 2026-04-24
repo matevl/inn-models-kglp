@@ -58,8 +58,11 @@
               export LD_LIBRARY_PATH="${libpath}:$LD_LIBRARY_PATH"
               export PATH="$HOME/.local/bin:$PATH"
 
+              # Force uv to use the Nix-provided Python (prevents missing Python.h)
+              export UV_PYTHON_DOWNLOADS="never"
+
               if [ ! -d "$venvDir" ]; then
-                  uv venv "$venvDir"
+                  uv venv --python="${python.interpreter}" "$venvDir"
               fi
 
               source "$venvDir/bin/activate"
