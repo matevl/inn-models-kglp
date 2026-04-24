@@ -31,7 +31,7 @@ class IntervalGCNLayer(nn.Module):
         Zc = self.W(H.c)
         Zr = H.r @ self.W.weight.abs().t()
         
-        # PyTorch doesn't support sparse mm in FP16, disable autocast
+        # Disable autocast as PyTorch sparse matrix multiplication does not support FP16
         device_type = Zc.device.type
         with torch.autocast(device_type=device_type if device_type != 'mps' else 'cpu', enabled=False):
             A_f32, Zc_f32, Zr_f32 = A.to(torch.float32), Zc.to(torch.float32), Zr.to(torch.float32)
@@ -85,13 +85,13 @@ class INNLightGCNLinkPredictor(nn.Module):
         self.register_buffer("A", None, persistent=False)
 
     def build_graph(self, train_triples: torch.Tensor) -> None:
-        """Construit et stocke la matrice d'adjacence normalisée."""
+        """Construct and store the normalized adjacency matrix."""
         num_ent = self.entity_emb.center.num_embeddings
         device = self.entity_emb.center.weight.device
 
-        edges = train_triples[:, [0, 2]].t()  # 2 x E (sans relations)
+        edges = train_triples[:, [0, 2]].t()  # Extract entity pairs (2 x E)
         edges = edges.to(device)
-        edges = torch.cat([edges, edges[[1, 0]]], dim=1)  # Graphe non orienté
+        edges = torch.cat([edges, edges[[1, 0]]], dim=1)  # Make graph undirected
 
         self_loops = torch.arange(num_ent, device=device).unsqueeze(0).repeat(2, 1)
         edges = torch.cat([edges, self_loops], dim=1)
@@ -116,7 +116,7 @@ class INNLightGCNLinkPredictor(nn.Module):
         return c_r, r_r
 
     def compute_all_embeddings(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Récupère les intervalles après passage GCN (si A est dispo)."""
+        """Compute interval embeddings after GCN layers if adjacency matrix is available."""
         num_ent = self.entity_emb.center.num_embeddings
         device = self.entity_emb.center.weight.device
         all_entity_ids = torch.arange(num_ent, device=device)

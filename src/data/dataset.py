@@ -74,7 +74,7 @@ def _build_vocab(
 
     num_orig_relations = len(base_relations)
     for i, relation in enumerate(base_relations):
-        # generate a unique inverse relation name and assign an ID = original_id + R
+        # Generate inverse relation tokens and assign offset IDs
         relation_to_id[f"{relation}_inverse"] = i + num_orig_relations
 
     return entity_to_id, relation_to_id
@@ -100,6 +100,14 @@ def _to_ids(
 
 
 def load_dataset(dataset_path: str) -> KGDataset:
+    """Load a knowledge graph dataset from a given path.
+
+    Args:
+        dataset_path (str): The file path to the dataset directory containing 'train.txt', 'valid.txt', and 'test.txt'.
+
+    Returns:
+        KGDataset: A dataclass instance containing the loaded tensor splits and vocabularies.
+    """
     root = Path(dataset_path).expanduser().resolve()
     if not root.exists():
         raise FileNotFoundError(f"Dataset path does not exist: {root}")

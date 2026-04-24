@@ -10,10 +10,10 @@ from utils.runtime import configure_logging, start_run_logging
 def main(cfg: DictConfig):
     LOGGER = configure_logging()
 
-    # Since hydra puts config at top level, we adapt it
+    # Initialize configuration and logging
     start_run_logging(cfg)
 
-    # We can pass an action like mode=train, test, train_init
+    # Dispatch execution based on specified mode
     mode = cfg.get("mode", "train")
     if mode == "train_init":
         run_train_init(cfg)

@@ -72,7 +72,7 @@ def run_test(cfg: DictConfig) -> None:
         writer.close()
 
         if metrics is not None:
-            # Format and display results nicely
+            # Render evaluation metrics summary
             metrics_table = format_metrics_table(
                 metrics,
                 title=f"Evaluation Results ({split.upper()} split)",

@@ -21,7 +21,21 @@ def evaluate_approx_ranking(
     batch_size: int,
     entity_chunk_size: int,  # Added entity_chunk_size to control sub-batch limits
 ) -> Dict[str, float]:
-    """Evaluate using approximate ranking with sampled negatives."""
+    """Evaluate using approximate ranking with sampled negatives.
+
+    Args:
+        model (nn.Module): The link prediction model to evaluate.
+        split_triples (torch.Tensor): A tensor of shape (num_triples, 3) representing the test or validation triples.
+        all_triples (torch.Tensor): A tensor of shape (num_all_triples, 3) representing all known triples for filtering.
+        num_entities (int): Total number of entities in the knowledge graph.
+        device (torch.device): The device on which to perform evaluation computations.
+        num_negatives (int): Number of negative samples to generate per positive triple for approximate ranking.
+        batch_size (int): The number of triples to process per batch.
+        entity_chunk_size (int): The chunk size for evaluating negative entities to manage memory usage.
+
+    Returns:
+        Dict[str, float]: A dictionary containing evaluation metrics: 'mrr', 'hits_at_1', 'hits_at_3', and 'hits_at_10'.
+    """
     model.eval()
     loader = DataLoader(
         split_triples,
@@ -177,7 +191,20 @@ def evaluate_exact_ranking_all_entities(
     batch_size: int,
     entity_chunk_size: int,
 ) -> Dict[str, float]:
-    """Evaluate using exact ranking against all entities."""
+    """Evaluate using exact ranking against all entities in the dataset.
+
+    Args:
+        model (nn.Module): The link prediction model to evaluate.
+        split_triples (torch.Tensor): A tensor of shape (num_triples, 3) representing the test or validation triples.
+        all_triples (torch.Tensor): A tensor of shape (num_all_triples, 3) representing all known triples for filtering.
+        num_entities (int): Total number of entities in the knowledge graph.
+        device (torch.device): The device on which to perform evaluation computations.
+        batch_size (int): The number of triples to process per batch.
+        entity_chunk_size (int): The chunk size for evaluating entities to manage memory usage.
+
+    Returns:
+        Dict[str, float]: A dictionary containing evaluation metrics: 'mrr', 'hits_at_1', 'hits_at_3', and 'hits_at_10'.
+    """
     model.eval()
     loader = DataLoader(
         split_triples,
@@ -313,7 +340,21 @@ def evaluate_model(
     batch_size: int,
     entity_chunk_size: int,
 ) -> Dict[str, float]:
-    """Route to exact or approximate evaluation based on num_negatives."""
+    """Route to exact or approximate evaluation based on num_negatives.
+
+    Args:
+        model (nn.Module): The link prediction model to evaluate.
+        split_tensor (torch.Tensor): A tensor of shape (num_triples, 3) representing the evaluation triples.
+        all_triples (torch.Tensor): A tensor of shape (num_all_triples, 3) representing all known triples for filtering.
+        num_entities (int): Total number of entities in the knowledge graph.
+        device (torch.device): The device on which to perform evaluation computations.
+        num_negatives (int): Number of negative samples per positive triple. If < 0, exact ranking is used.
+        batch_size (int): The number of triples to process per batch.
+        entity_chunk_size (int): The chunk size for evaluating entities to manage memory usage.
+
+    Returns:
+        Dict[str, float]: A dictionary containing evaluation metrics: 'mrr', 'hits_at_1', 'hits_at_3', and 'hits_at_10'.
+    """
     if num_negatives < 0 or num_negatives >= num_entities - 1:
         if entity_chunk_size <= 0:
             raise ValueError("--entity-chunk-size must be > 0")

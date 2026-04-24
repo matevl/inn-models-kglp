@@ -66,7 +66,7 @@ class IntervalMLP_INN_Ours_MLP(nn.Module):
             self.mlp_layers.append(IntervalLinear_INN_Ours_MLP(in_dim, h_dim))
             in_dim = h_dim
 
-        # Output layer maps back to standard embedding dimension
+        # Project back to base embedding dimensionality
         self.output_layer = IntervalLinear_INN_Ours_MLP(in_dim, dim)
 
         nn.init.uniform_(self.emb_c.weight, -0.1, 0.1)
@@ -137,10 +137,10 @@ class INNLinkPredictor(nn.Module):
         pos_triplets: torch.Tensor,
         neg_triplets: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        # Compute relation embeddings once (same for pos and neg)
+        # Cache relation embeddings for reuse across positive and negative samples
         rc, rr = self.get_relation(pos_triplets[:, 1])
 
-        # Compute embeddings for all entities rather than isolating unique ones
+        # Precompute embeddings for the entire entity vocabulary
         num_ent = self.entity_encoder.emb_c.num_embeddings
         all_entity_ids = torch.arange(num_ent, device=pos_triplets.device)
         u_c, u_r = self.entity_encoder(all_entity_ids)
