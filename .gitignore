@@ -11,3 +11,4 @@
 *checkpoints/
 *runs/
 *.db-journal
+*experiments/

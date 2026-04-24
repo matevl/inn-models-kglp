@@ -60,9 +60,10 @@
 
               if [ ! -d "$venvDir" ]; then
                   uv venv "$venvDir"
-                  source "$venvDir/bin/activate"
-                  uv pip install -e .
               fi
+
+              source "$venvDir/bin/activate"
+              uv pip install -e .
             '';
           };
         }
