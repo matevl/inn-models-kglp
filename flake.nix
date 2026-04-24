@@ -5,13 +5,18 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = { self, nixpkgs }:
+  outputs =
+    { self, nixpkgs }:
     let
-      supportedSystems = [ "x86_64-linux" "aarch64-linux" ];
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
     in
     {
-      devShells = forAllSystems (system:
+      devShells = forAllSystems (
+        system:
         let
           pkgs = import nixpkgs {
             inherit system;
@@ -22,14 +27,16 @@
 
           python = pkgs.python311;
 
-          libpath = with pkgs; lib.makeLibraryPath [
-            stdenv.cc.cc.lib
-            zlib
-            glib
-            libGL
-            xorg.libX11
-            xorg.libXext
-          ];
+          libpath =
+            with pkgs;
+            lib.makeLibraryPath [
+              stdenv.cc.cc.lib
+              zlib
+              glib
+              libGL
+              libx11
+              libxext
+            ];
         in
         {
           default = pkgs.mkShell {
@@ -51,9 +58,9 @@
               export LD_LIBRARY_PATH="${libpath}:$LD_LIBRARY_PATH"
               export PATH="$HOME/.local/bin:$PATH"
 
-              if [ ! -d "${venvDir}" ]; then
-                  uv venv ${venvDir}
-                  source ${venvDir}/bin/activate
+              if [ ! -d "$venvDir" ]; then
+                  uv venv "$venvDir"
+                  source "$venvDir/bin/activate"
                   uv pip install -e .
               fi
             '';

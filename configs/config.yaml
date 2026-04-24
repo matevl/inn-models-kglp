@@ -5,7 +5,7 @@ defaults:
 
 hydra:
   run:
-    dir: logs/${now:%Y-%m-%d_%H-%M-%S}
+    dir: experiments/${model.name}/${dataset.name}/${now:%Y-%m-%d_%H-%M-%S}
 
 mode: "train"
 seed: 42

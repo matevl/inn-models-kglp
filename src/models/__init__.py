@@ -66,7 +66,7 @@ def build_link_predictor(
     raise ValueError(f"Unsupported model type: {model_type}")
 
 
-def self_adversarial_negative_sampling_loss(
+def self_adversarial_loss(
     pos_scores: torch.Tensor,
     neg_scores: torch.Tensor,
     margin: float = 1.0,
@@ -140,7 +140,7 @@ def infonce_loss(
 
 
 LOSS_TYPE = {
-    "adversarial": self_adversarial_negative_sampling_loss,
+    "self_adversarial": self_adversarial_loss,
     "bce": bce_loss,
     "margin": margin_ranking_loss,
     "logsumexp": logsumexp_loss,

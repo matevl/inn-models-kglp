@@ -4,13 +4,13 @@ defaults:
   - override /model: inn_rotate
 
 model:
-  loss_type: "infonce"
+  loss_type: "margin"
 
 training:
   epochs: 500
   batch_size: 2048
   lr: 0.001
-  num_negatives_train: 128
+  num_negatives_train: 256
   log_interval: 10
 
 evaluation:
@@ -19,5 +19,5 @@ evaluation:
   entity_chunk_size: 512
   batch_size: 512
 
-checkpoint: "inn_rotate_fb15k237_v4.pt"
-experiment_name: "inn_rotate_fb15k237_v4"
+checkpoint: "inn_rotate_fb15k237_v2.pt"
+experiment_name: "inn_rotate_fb15k237_v2"
