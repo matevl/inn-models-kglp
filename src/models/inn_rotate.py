@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from core.intervals import ComplexInterval, irotate
+
 class RotatEEntityEmbedding(nn.Module):
     def __init__(self, num_entities: int, dim: int, init_rho: float = -5.0):
         super().__init__()
@@ -56,27 +58,18 @@ class INNRotatELinkPredictor(nn.Module):
         """
         rc_phase, rr = self.get_relation(r_idx)
 
-        rc_re = torch.cos(rc_phase)
-        rc_im = torch.sin(rc_phase)
-        
         hc, hr = self.entity_emb(h_idx)
         tc, tr = self.entity_emb(t_idx)
 
         hc_re, hc_im = torch.chunk(hc, 2, dim=-1)
         tc_re, tc_im = torch.chunk(tc, 2, dim=-1)
 
-        pred_c_re = hc_re * rc_re - hc_im * rc_im
-        pred_c_im = hc_re * rc_im + hc_im * rc_re
-        
-        pred_r = hr + rr
+        h_interval = ComplexInterval(hc_re, hc_im, hr)
+        t_interval = ComplexInterval(tc_re, tc_im, tr)
 
-        diff_c_re = pred_c_re - tc_re
-        diff_c_im = pred_c_im - tc_im
-        
-        dist_c = torch.sqrt(diff_c_re**2 + diff_c_im**2).sum(dim=-1)
-        sum_r = (pred_r + tr).sum(dim=-1)
+        pred_interval = irotate(h_interval, rc_phase, rr)
 
-        return sum_r - dist_c
+        return pred_interval.distance(t_interval)
 
     def forward(self, pos_triplets: torch.Tensor, neg_triplets: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass for training with positive and negative triples.
@@ -92,40 +85,30 @@ class INNRotatELinkPredictor(nn.Module):
         """
         rc_phase, rr = self.get_relation(pos_triplets[:, 1])
 
-        rc_re = torch.cos(rc_phase)
-        rc_im = torch.sin(rc_phase)
-
         pos_h_idx = pos_triplets[:, 0]
         pos_t_idx = pos_triplets[:, 2]
         neg_h_idx = neg_triplets[:, :, 0]
         neg_t_idx = neg_triplets[:, :, 2]
 
-        def compute_score(h_idx, t_idx, rc_re, rc_im, rr):
+        def compute_score(h_idx, t_idx, r_phase, r_r):
             hc, hr = self.entity_emb(h_idx)
             tc, tr = self.entity_emb(t_idx)
 
             hc_re, hc_im = torch.chunk(hc, 2, dim=-1)
             tc_re, tc_im = torch.chunk(tc, 2, dim=-1)
 
-            pred_c_re = hc_re * rc_re - hc_im * rc_im
-            pred_c_im = hc_re * rc_im + hc_im * rc_re
-            
-            pred_r = hr + rr
+            h_interval = ComplexInterval(hc_re, hc_im, hr)
+            t_interval = ComplexInterval(tc_re, tc_im, tr)
 
-            diff_c_re = pred_c_re - tc_re
-            diff_c_im = pred_c_im - tc_im
-            
-            dist_c = torch.sqrt(diff_c_re**2 + diff_c_im**2).sum(dim=-1)
-            sum_r = (pred_r + tr).sum(dim=-1)
+            pred_interval = irotate(h_interval, r_phase, r_r)
 
-            return sum_r - dist_c
+            return pred_interval.distance(t_interval)
 
-        pos_scores = compute_score(pos_h_idx, pos_t_idx, rc_re, rc_im, rr)
+        pos_scores = compute_score(pos_h_idx, pos_t_idx, rc_phase, rr)
         
-        rc_re_neg = rc_re.unsqueeze(1)
-        rc_im_neg = rc_im.unsqueeze(1)
+        rc_phase_neg = rc_phase.unsqueeze(1)
         rr_neg = rr.unsqueeze(1)
         
-        neg_scores = compute_score(neg_h_idx, neg_t_idx, rc_re_neg, rc_im_neg, rr_neg)
+        neg_scores = compute_score(neg_h_idx, neg_t_idx, rc_phase_neg, rr_neg)
 
         return pos_scores, neg_scores

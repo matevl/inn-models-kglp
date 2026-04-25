@@ -5,21 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .inn_ours_mlp import IntervalEntityEmbedding
-from core.intervals import Interval
-
-
-class TInterval:
-    def __init__(self, c, r):
-        self.c = c
-        self.r = torch.clamp(r, min=0)
-
-    def lu(self):
-        return self.c - self.r, self.c + self.r
-
-    @staticmethod
-    def from_lu(lo, hi):
-        return TInterval((lo + hi) / 2, (hi - lo) / 2)
-
+from core.intervals import Interval, interval_relu
 
 class IntervalGCNLayer(nn.Module):
     def __init__(self, i, o, act="relu"):
@@ -27,7 +13,7 @@ class IntervalGCNLayer(nn.Module):
         self.W = nn.Linear(i, o, bias=False)
         self.act = act
 
-    def forward(self, A, H: TInterval):
+    def forward(self, A, H: Interval):
         Zc = self.W(H.c)
         Zr = H.r @ self.W.weight.abs().t()
         
@@ -41,10 +27,9 @@ class IntervalGCNLayer(nn.Module):
         C = C_f32.to(Zc.dtype)
         R = R_f32.to(Zr.dtype)
         
-        Hn = TInterval(C, R)
+        Hn = Interval(C, R)
         if self.act == "relu":
-            lo, hi = Hn.lu()
-            return TInterval.from_lu(F.relu(lo), F.relu(hi))
+            return interval_relu(Hn)
         return Hn
 
 
@@ -123,7 +108,7 @@ class INNLightGCNLinkPredictor(nn.Module):
         u_c, u_r = self.entity_emb(all_entity_ids)
 
         if self.A is not None:
-            H = TInterval(u_c, u_r)
+            H = Interval(u_c, u_r)
             H = self.net(self.A, H)
             return H.c, H.r
         return u_c, u_r

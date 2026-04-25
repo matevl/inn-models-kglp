@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .inn_ours_mlp import IntervalEntityEmbedding
-from .inn_lightgcn import TInterval
+from core.intervals import Interval, interval_relu
 
 
 class CompGCNIntervalLayer(nn.Module):
@@ -18,7 +18,7 @@ class CompGCNIntervalLayer(nn.Module):
         self.loop_rel_c = nn.Parameter(torch.zeros(1, in_dim))
         self.loop_rel_r = nn.Parameter(torch.full((1, in_dim), init_rho))
 
-    def forward(self, H: TInterval, rel_c: torch.Tensor, rel_r: torch.Tensor, in_edges, out_edges, loop_edges):
+    def forward(self, H: Interval, rel_c: torch.Tensor, rel_r: torch.Tensor, in_edges, out_edges, loop_edges):
         num_ent = H.c.shape[0]
         
         in_row, in_col, in_type, in_norm = in_edges
@@ -70,9 +70,8 @@ class CompGCNIntervalLayer(nn.Module):
         new_rel_c = self.W_rel(rel_c)
         new_rel_r = rel_r @ self.W_rel.weight.abs().t()
         
-        Hn = TInterval(c_agg, r_agg)
-        lo, hi = Hn.lu()
-        return TInterval.from_lu(F.relu(lo), F.relu(hi)), new_rel_c, new_rel_r
+        Hn = Interval(c_agg, r_agg)
+        return interval_relu(Hn), new_rel_c, new_rel_r
 
 
 class INNCompGCNLinkPredictor(nn.Module):
@@ -155,7 +154,7 @@ class INNCompGCNLinkPredictor(nn.Module):
         rel_c, rel_r = self.get_relation(all_rel_ids)
 
         if self.in_row is not None:
-            H = TInterval(u_c, u_r)
+            H = Interval(u_c, u_r)
             in_edges = (self.in_row, self.in_col, self.in_type, self.in_norm)
             out_edges = (self.out_row, self.out_col, self.out_type, self.out_norm)
             loop_edges = (self.loop_row, self.loop_col)

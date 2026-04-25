@@ -72,3 +72,47 @@ def interval_logsumexp(x: Interval, axis: int = -1) -> Interval:
     lo_s = torch.logsumexp(lo, dim=axis)
     hi_s = torch.logsumexp(hi, dim=axis)
     return Interval.from_lu(lo_s, hi_s)
+
+
+@dataclass
+class ComplexInterval:
+    """Interval in the complex plane representing a disc: c_re, c_im +/- r."""
+
+    c_re: torch.Tensor
+    c_im: torch.Tensor
+    r: torch.Tensor
+
+    def distance(self, other: "ComplexInterval") -> torch.Tensor:
+        """Computes the distance between two complex intervals.
+
+        The distance is defined as the sum of their radii minus the Euclidean
+        distance between their centers.
+        """
+        diff_re = self.c_re - other.c_re
+        diff_im = self.c_im - other.c_im
+        dist_c = torch.sqrt(diff_re**2 + diff_im**2).sum(dim=-1)
+        sum_r = (self.r + other.r).sum(dim=-1)
+        return sum_r - dist_c
+
+
+def irotate(h: ComplexInterval, r_phase: torch.Tensor, r_radius: torch.Tensor) -> ComplexInterval:
+    """Rotates a ComplexInterval by a given phase and adds uncertainty.
+
+    Args:
+        h (ComplexInterval): The head entity complex interval (disc).
+        r_phase (torch.Tensor): The rotation angle (phase) of the relation.
+        r_radius (torch.Tensor): The uncertainty added by the relation.
+
+    Returns:
+        ComplexInterval: The rotated complex interval.
+    """
+    cos_r = torch.cos(r_phase)
+    sin_r = torch.sin(r_phase)
+
+    pred_c_re = h.c_re * cos_r - h.c_im * sin_r
+    pred_c_im = h.c_re * sin_r + h.c_im * cos_r
+
+    pred_radius = h.r + r_radius
+
+    return ComplexInterval(pred_c_re, pred_c_im, pred_radius)
+
