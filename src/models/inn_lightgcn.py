@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from .inn_ours_mlp import IntervalEntityEmbedding
 from core.intervals import Interval, interval_relu
 
+
 class IntervalGCNLayer(nn.Module):
     def __init__(self, i, o, act="relu"):
         super().__init__()
@@ -16,17 +17,23 @@ class IntervalGCNLayer(nn.Module):
     def forward(self, A, H: Interval):
         Zc = self.W(H.c)
         Zr = H.r @ self.W.weight.abs().t()
-        
+
         # Disable autocast as PyTorch sparse matrix multiplication does not support FP16
         device_type = Zc.device.type
-        with torch.autocast(device_type=device_type if device_type != 'mps' else 'cpu', enabled=False):
-            A_f32, Zc_f32, Zr_f32 = A.to(torch.float32), Zc.to(torch.float32), Zr.to(torch.float32)
+        with torch.autocast(
+            device_type=device_type if device_type != "mps" else "cpu", enabled=False
+        ):
+            A_f32, Zc_f32, Zr_f32 = (
+                A.to(torch.float32),
+                Zc.to(torch.float32),
+                Zr.to(torch.float32),
+            )
             C_f32 = A_f32 @ Zc_f32
             R_f32 = A_f32.abs() @ Zr_f32
-            
+
         C = C_f32.to(Zc.dtype)
         R = R_f32.to(Zr.dtype)
-        
+
         Hn = Interval(C, R)
         if self.act == "relu":
             return interval_relu(Hn)
@@ -88,11 +95,14 @@ class INNLightGCNLinkPredictor(nn.Module):
         deg_inv_sqrt[deg_inv_sqrt == float("inf")] = 0
 
         edge_weight = deg_inv_sqrt[row] * deg_inv_sqrt[col]
-        
+
         import warnings
+
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", message=".*Sparse invariant checks.*")
-            A = torch.sparse_coo_tensor(edges, edge_weight, (num_ent, num_ent)).to(device)
+            A = torch.sparse_coo_tensor(edges, edge_weight, (num_ent, num_ent)).to(
+                device
+            )
         self.A = A
 
     def get_relation(self, idx: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -178,19 +188,19 @@ class INNLightGCNLinkPredictor(nn.Module):
         """1-to-N scoring against all entities."""
         u_c, u_r = self.compute_all_embeddings()
         rc, rr = self.get_relation(pos_triplets[:, 1])
-        
+
         h_idx = pos_triplets[:, 0]
         hc, hr = u_c[h_idx], u_r[h_idx]
-        
+
         pred_c = hc + rc
         pred_r = hr + rr
-        
+
         diff_c = pred_c.unsqueeze(1) - u_c.unsqueeze(0)
         distance = torch.norm(diff_c, p=1, dim=-1)
-        
+
         sum_r = pred_r.unsqueeze(1) + u_r.unsqueeze(0)
         max_radius_sum = sum_r.sum(dim=-1)
-        
+
         return max_radius_sum - distance
 
     def get_radii_stats(self) -> dict[str, float]:

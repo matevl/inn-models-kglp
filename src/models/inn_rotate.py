@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 from core.intervals import ComplexInterval, irotate
 
+
 class RotatEEntityEmbedding(nn.Module):
     def __init__(self, num_entities: int, dim: int, init_rho: float = -5.0):
         super().__init__()
@@ -22,8 +23,15 @@ class RotatEEntityEmbedding(nn.Module):
 
 class INNRotatELinkPredictor(nn.Module):
     """Interval-based implementation of RotatE with isotropic geometry."""
-    
-    def __init__(self, num_entities: int, num_relations: int, dim: int, gamma_margin: float = 1.0, init_rho: float = -5.0):
+
+    def __init__(
+        self,
+        num_entities: int,
+        num_relations: int,
+        dim: int,
+        gamma_margin: float = 1.0,
+        init_rho: float = -5.0,
+    ):
         super().__init__()
         self.dim = dim
         self.entity_emb = RotatEEntityEmbedding(num_entities, dim, init_rho=init_rho)
@@ -31,7 +39,7 @@ class INNRotatELinkPredictor(nn.Module):
         self.rel_rho = nn.Embedding(num_relations, dim)
         self.gamma_margin = gamma_margin
         self.init_rho = init_rho
-        
+
         nn.init.uniform_(self.rel_center.weight, -math.pi, math.pi)
         nn.init.constant_(self.rel_rho.weight, init_rho)
 
@@ -71,7 +79,9 @@ class INNRotatELinkPredictor(nn.Module):
 
         return pred_interval.distance(t_interval)
 
-    def forward(self, pos_triplets: torch.Tensor, neg_triplets: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, pos_triplets: torch.Tensor, neg_triplets: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass for training with positive and negative triples.
 
         Args:
@@ -105,11 +115,13 @@ class INNRotatELinkPredictor(nn.Module):
             return pred_interval.distance(t_interval)
 
         pos_scores = compute_score(pos_h_idx, pos_t_idx, rc_phase, rr)
-        
+
         rc_phase_neg = rc_phase.unsqueeze(1)
         rr_neg = rr.unsqueeze(1)
-        
-        neg_scores = compute_score(neg_h_idx, neg_t_idx, rc_phase.unsqueeze(1), rr.unsqueeze(1))
+
+        neg_scores = compute_score(
+            neg_h_idx, neg_t_idx, rc_phase.unsqueeze(1), rr.unsqueeze(1)
+        )
 
         return pos_scores, neg_scores
 
@@ -119,27 +131,27 @@ class INNRotatELinkPredictor(nn.Module):
         device = pos_triplets.device
         all_entity_ids = torch.arange(num_ent, device=device)
         u_c, u_r = self.entity_emb(all_entity_ids)
-        
+
         h_idx = pos_triplets[:, 0]
         r_idx = pos_triplets[:, 1]
-        
+
         hc, hr = self.entity_emb(h_idx)
         rc_phase, rr = self.get_relation(r_idx)
-        
+
         hc_re, hc_im = torch.chunk(hc, 2, dim=-1)
         u_re, u_im = torch.chunk(u_c, 2, dim=-1)
-        
+
         cos_r = torch.cos(rc_phase)
         sin_r = torch.sin(rc_phase)
-        
+
         pred_re = hc_re * cos_r - hc_im * sin_r
         pred_im = hc_re * sin_r + hc_im * cos_r
         pred_r = hr + rr
-        
+
         diff_re = pred_re.unsqueeze(1) - u_re.unsqueeze(0)
         diff_im = pred_im.unsqueeze(1) - u_im.unsqueeze(0)
-        
+
         dist_c = torch.sqrt(diff_re**2 + diff_im**2).sum(dim=-1)
         sum_r = (pred_r.unsqueeze(1) + u_r.unsqueeze(0)).sum(dim=-1)
-        
+
         return sum_r - dist_c

@@ -12,23 +12,31 @@ class CompGCNIntervalLayer(nn.Module):
         self.W_in = nn.Linear(in_dim, out_dim, bias=False)
         self.W_out = nn.Linear(in_dim, out_dim, bias=False)
         self.W_loop = nn.Linear(in_dim, out_dim, bias=False)
-        
+
         self.W_rel = nn.Linear(in_dim, out_dim, bias=False)
-        
+
         self.loop_rel_c = nn.Parameter(torch.zeros(1, in_dim))
         self.loop_rel_r = nn.Parameter(torch.full((1, in_dim), init_rho))
 
-    def forward(self, H: Interval, rel_c: torch.Tensor, rel_r: torch.Tensor, in_edges, out_edges, loop_edges):
+    def forward(
+        self,
+        H: Interval,
+        rel_c: torch.Tensor,
+        rel_r: torch.Tensor,
+        in_edges,
+        out_edges,
+        loop_edges,
+    ):
         num_ent = H.c.shape[0]
-        
+
         in_row, in_col, in_type, in_norm = in_edges
         out_row, out_col, out_type, out_norm = out_edges
         loop_row, loop_col = loop_edges
-        
+
         def aggregate(row, col, edge_type, r_c, r_r, W, mode, edge_weight):
             x_j_c = H.c[col]
             x_j_r = H.r[col]
-            
+
             if mode == "in":
                 msg_c = x_j_c + r_c[edge_type]
                 msg_r = x_j_r + r_r[edge_type]
@@ -38,38 +46,51 @@ class CompGCNIntervalLayer(nn.Module):
             else:
                 msg_c = x_j_c + r_c.expand(len(col), -1)
                 msg_r = x_j_r + r_r.expand(len(col), -1)
-                
+
             out_c = msg_c @ W.weight.t()
             out_r = msg_r @ W.weight.abs().t()
-            
+
             if edge_weight is not None:
                 out_c = out_c * edge_weight.unsqueeze(-1)
                 out_r = out_r * edge_weight.unsqueeze(-1)
-                
+
             dim = out_c.shape[1]
             res_c = torch.zeros(num_ent, dim, device=out_c.device, dtype=out_c.dtype)
             res_r = torch.zeros(num_ent, dim, device=out_r.device, dtype=out_r.dtype)
-            
+
             index = row.unsqueeze(-1).expand(-1, dim)
             res_c.scatter_add_(0, index, out_c)
             res_r.scatter_add_(0, index, out_r)
-            
+
             return res_c, res_r
 
-        c_in, r_in = aggregate(in_row, in_col, in_type, rel_c, rel_r, self.W_in, "in", in_norm)
-        c_out, r_out = aggregate(out_row, out_col, out_type, rel_c, rel_r, self.W_out, "out", out_norm)
-        
+        c_in, r_in = aggregate(
+            in_row, in_col, in_type, rel_c, rel_r, self.W_in, "in", in_norm
+        )
+        c_out, r_out = aggregate(
+            out_row, out_col, out_type, rel_c, rel_r, self.W_out, "out", out_norm
+        )
+
         soft_loop_r = F.softplus(self.loop_rel_r)
-        c_loop, r_loop = aggregate(loop_row, loop_col, None, self.loop_rel_c, soft_loop_r, self.W_loop, "loop", None)
-        
+        c_loop, r_loop = aggregate(
+            loop_row,
+            loop_col,
+            None,
+            self.loop_rel_c,
+            soft_loop_r,
+            self.W_loop,
+            "loop",
+            None,
+        )
+
         # Average aggregations across edge directions (in, out, loop)
         c_agg = (c_in + c_out + c_loop) / 3.0
         r_agg = (r_in + r_out + r_loop) / 3.0
-        
+
         # Propagate relation embeddings
         new_rel_c = self.W_rel(rel_c)
         new_rel_r = rel_r @ self.W_rel.weight.abs().t()
-        
+
         Hn = Interval(c_agg, r_agg)
         return interval_relu(Hn), new_rel_c, new_rel_r
 
@@ -94,17 +115,17 @@ class INNCompGCNLinkPredictor(nn.Module):
 
         nn.init.uniform_(self.rel_center.weight, -0.1, 0.1)
         nn.init.constant_(self.rel_rho.weight, init_rho)
-        
+
         self.register_buffer("in_row", None, persistent=False)
         self.register_buffer("in_col", None, persistent=False)
         self.register_buffer("in_type", None, persistent=False)
         self.register_buffer("in_norm", None, persistent=False)
-        
+
         self.register_buffer("out_row", None, persistent=False)
         self.register_buffer("out_col", None, persistent=False)
         self.register_buffer("out_type", None, persistent=False)
         self.register_buffer("out_norm", None, persistent=False)
-        
+
         self.register_buffer("loop_row", None, persistent=False)
         self.register_buffer("loop_col", None, persistent=False)
 
@@ -143,13 +164,15 @@ class INNCompGCNLinkPredictor(nn.Module):
         r_r = F.softplus(self.rel_rho(idx))
         return c_r, r_r
 
-    def compute_all_embeddings(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def compute_all_embeddings(
+        self,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         num_ent = self.entity_emb.center.num_embeddings
         device = self.entity_emb.center.weight.device
-        
+
         all_entity_ids = torch.arange(num_ent, device=device)
         u_c, u_r = self.entity_emb(all_entity_ids)
-        
+
         all_rel_ids = torch.arange(self.rel_center.num_embeddings, device=device)
         rel_c, rel_r = self.get_relation(all_rel_ids)
 
@@ -158,10 +181,12 @@ class INNCompGCNLinkPredictor(nn.Module):
             in_edges = (self.in_row, self.in_col, self.in_type, self.in_norm)
             out_edges = (self.out_row, self.out_col, self.out_type, self.out_norm)
             loop_edges = (self.loop_row, self.loop_col)
-            
-            Hn, rel_c, rel_r = self.layer(H, rel_c, rel_r, in_edges, out_edges, loop_edges)
+
+            Hn, rel_c, rel_r = self.layer(
+                H, rel_c, rel_r, in_edges, out_edges, loop_edges
+            )
             return Hn.c, Hn.r, rel_c, rel_r
-            
+
         return u_c, u_r, rel_c, rel_r
 
     def inn_score(
@@ -181,7 +206,7 @@ class INNCompGCNLinkPredictor(nn.Module):
             torch.Tensor: The computed scores for the input triples.
         """
         u_c, u_r, rel_c, rel_r = self.compute_all_embeddings()
-        
+
         hc, hr = u_c[h_idx], u_r[h_idx]
         tc, tr = u_c[t_idx], u_r[t_idx]
         rc, rr = rel_c[r_idx], rel_r[r_idx]
@@ -202,17 +227,17 @@ class INNCompGCNLinkPredictor(nn.Module):
         pos_h_idx = pos_triplets[:, 0]
         pos_t_idx = pos_triplets[:, 2]
         pos_r_idx = pos_triplets[:, 1]
-        
+
         neg_h_idx = neg_triplets[:, :, 0]
         neg_t_idx = neg_triplets[:, :, 2]
 
         hc, hr = u_c[pos_h_idx], u_r[pos_h_idx]
         tc, tr = u_c[pos_t_idx], u_r[pos_t_idx]
         rc, rr = rel_c[pos_r_idx], rel_r[pos_r_idx]
-        
+
         pred_c = hc + rc
         pred_r = hr + rr
-        
+
         distance = torch.norm(pred_c - tc, p=1, dim=-1)
         max_radius_sum = (pred_r + tr).sum(dim=-1)
         pos_scores = max_radius_sum - distance
@@ -220,10 +245,10 @@ class INNCompGCNLinkPredictor(nn.Module):
         hc_neg, hr_neg = u_c[neg_h_idx], u_r[neg_h_idx]
         tc_neg, tr_neg = u_c[neg_t_idx], u_r[neg_t_idx]
         rc_neg, rr_neg = rc.unsqueeze(1), rr.unsqueeze(1)
-        
+
         pred_c_neg = hc_neg + rc_neg
         pred_r_neg = hr_neg + rr_neg
-        
+
         distance_neg = torch.norm(pred_c_neg - tc_neg, p=1, dim=-1)
         max_radius_sum_neg = (pred_r_neg + tr_neg).sum(dim=-1)
         neg_scores = max_radius_sum_neg - distance_neg
@@ -233,20 +258,20 @@ class INNCompGCNLinkPredictor(nn.Module):
     def forward_1ton(self, pos_triplets: torch.Tensor) -> torch.Tensor:
         """1-to-N scoring against all entities."""
         u_c, u_r, rel_c, rel_r = self.compute_all_embeddings()
-        
+
         h_idx = pos_triplets[:, 0]
         r_idx = pos_triplets[:, 1]
-        
+
         hc, hr = u_c[h_idx], u_r[h_idx]
         rc, rr = rel_c[r_idx], rel_r[r_idx]
-        
+
         pred_c = hc + rc
         pred_r = hr + rr
-        
+
         diff_c = pred_c.unsqueeze(1) - u_c.unsqueeze(0)
         distance = torch.norm(diff_c, p=1, dim=-1)
-        
+
         sum_r = pred_r.unsqueeze(1) + u_r.unsqueeze(0)
         max_radius_sum = sum_r.sum(dim=-1)
-        
+
         return max_radius_sum - distance

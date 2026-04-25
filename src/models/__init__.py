@@ -15,9 +15,17 @@ def infer_model_type_from_state_dict(state_dict: dict[str, torch.Tensor]) -> str
         return "inn_ours_mlp"
     if any(k.startswith("layer.W_in.") for k in state_dict):
         return "inn_compgcn"
-    if any(k.startswith("entity_emb.") for k in state_dict) and not any(k.startswith("layer.") for k in state_dict) and "net.layers.0.W.weight" not in state_dict:
+    if (
+        any(k.startswith("entity_emb.") for k in state_dict)
+        and not any(k.startswith("layer.") for k in state_dict)
+        and "net.layers.0.W.weight" not in state_dict
+    ):
         # Check if it's rotate or transe
-        if "rel_center.weight" in state_dict and state_dict["rel_center.weight"].shape[1] == state_dict["entity_emb.center.weight"].shape[1]:
+        if (
+            "rel_center.weight" in state_dict
+            and state_dict["rel_center.weight"].shape[1]
+            == state_dict["entity_emb.center.weight"].shape[1]
+        ):
             return "inn_transe"
         return "inn_rotate"
     if any(k.startswith("entity_emb.") for k in state_dict):
@@ -87,7 +95,9 @@ def self_adversarial_loss(
     pos_loss = -F.logsigmoid(pos_scores + gamma_margin).mean()
     with torch.no_grad():
         neg_weights = F.softmax(neg_scores * alpha, dim=-1)
-    neg_loss = -(neg_weights * F.logsigmoid(-neg_scores - gamma_margin)).sum(dim=-1).mean()
+    neg_loss = (
+        -(neg_weights * F.logsigmoid(-neg_scores - gamma_margin)).sum(dim=-1).mean()
+    )
     return pos_loss + neg_loss
 
 
@@ -113,10 +123,10 @@ def compgcn_bce_loss(
 ) -> torch.Tensor:
     """Standard CompGCN loss: BCE with label smoothing for 1-to-N scoring."""
     num_entities = all_scores.size(1)
-    
+
     targets = torch.full_like(all_scores, label_smoothing / num_entities)
     targets.scatter_(1, target_indices.unsqueeze(1), 1.0 - label_smoothing)
-    
+
     return F.binary_cross_entropy_with_logits(all_scores, targets)
 
 

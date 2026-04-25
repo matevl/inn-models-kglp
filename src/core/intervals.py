@@ -95,7 +95,9 @@ class ComplexInterval:
         return sum_r - dist_c
 
 
-def irotate(h: ComplexInterval, r_phase: torch.Tensor, r_radius: torch.Tensor) -> ComplexInterval:
+def irotate(
+    h: ComplexInterval, r_phase: torch.Tensor, r_radius: torch.Tensor
+) -> ComplexInterval:
     """Rotates a ComplexInterval by a given phase and adds uncertainty.
 
     Args:
@@ -115,4 +117,3 @@ def irotate(h: ComplexInterval, r_phase: torch.Tensor, r_radius: torch.Tensor) -
     pred_radius = h.r + r_radius
 
     return ComplexInterval(pred_c_re, pred_c_im, pred_radius)
-

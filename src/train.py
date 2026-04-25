@@ -91,7 +91,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
         device=device,
     )
 
-    best_loss = float('inf')
+    best_loss = float("inf")
     patience_counter = 0
     patience_limit = 30
 
@@ -178,7 +178,11 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             patience_counter += 1
 
         if patience_counter >= patience_limit:
-            LOGGER.info("[STOP] Model hasn't learned for %d continuous epochs. Stopping early at epoch %d.", patience_limit, epoch)
+            LOGGER.info(
+                "[STOP] Model hasn't learned for %d continuous epochs. Stopping early at epoch %d.",
+                patience_limit,
+                epoch,
+            )
             save_checkpoint(
                 checkpoint_path=ckpt_path,
                 model=model,

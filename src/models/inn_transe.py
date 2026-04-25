@@ -76,7 +76,7 @@ class INNTransELinkPredictor(nn.Module):
         # Negative scores
         hc_neg, hr_neg = self.entity_emb(neg_h_idx)
         tc_neg, tr_neg = self.entity_emb(neg_t_idx)
-        
+
         rc_neg = rc.unsqueeze(1)
         rr_neg = rr.unsqueeze(1)
 
@@ -94,22 +94,22 @@ class INNTransELinkPredictor(nn.Module):
         num_ent = self.entity_emb.center.num_embeddings
         all_entity_ids = torch.arange(num_ent, device=pos_triplets.device)
         u_c, u_r = self.entity_emb(all_entity_ids)
-        
+
         h_idx = pos_triplets[:, 0]
         r_idx = pos_triplets[:, 1]
-        
+
         hc, hr = u_c[h_idx], u_r[h_idx]
         rc, rr = self.get_relation(r_idx)
-        
+
         pred_c = hc + rc
         pred_r = hr + rr
-        
+
         diff_c = pred_c.unsqueeze(1) - u_c.unsqueeze(0)
         distance = torch.norm(diff_c, p=1, dim=-1)
-        
+
         sum_r = pred_r.unsqueeze(1) + u_r.unsqueeze(0)
         max_radius_sum = sum_r.sum(dim=-1)
-        
+
         return max_radius_sum - distance
 
     def get_radii_stats(self) -> dict[str, float]:
