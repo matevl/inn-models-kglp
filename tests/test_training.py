@@ -28,7 +28,7 @@ def test_training_epoch_speed(model_type):
         num_entities=num_entities,
         num_relations=num_relations,
         dim=200,
-        margin=1.0,
+        gamma_margin=1.0,
         init_rho=-5.0,
         hidden_layers=[800] if model_type == "inn_ours_mlp" else None,
     ).to(device)
@@ -58,7 +58,7 @@ def test_training_epoch_speed(model_type):
         loader=loader,
         optimizer=optimizer,
         device=device,
-        margin=1.0,
+        gamma_margin=1.0,
         num_entities=num_entities,
         num_negatives=32,
         alpha=1.0,

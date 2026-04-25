@@ -5,6 +5,9 @@ defaults:
 
 model:
   loss_type: "infonce"
+  gamma_margin: 9.0
+  alpha: 1.0
+  dim: 1000
 
 training:
   epochs: 500

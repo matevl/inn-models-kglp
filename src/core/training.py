@@ -96,7 +96,7 @@ def train_epoch(
     loader: DataLoader,
     optimizer: torch.optim.Optimizer,
     device: torch.device,
-    margin: float,
+    gamma_margin: float,
     num_entities: int,
     num_negatives: int,
     writer=None,
@@ -113,7 +113,7 @@ def train_epoch(
         loader (DataLoader): The DataLoader providing training batches.
         optimizer (torch.optim.Optimizer): The optimizer used for weight updates.
         device (torch.device): The device on which computations are performed.
-        margin (float): The margin parameter used in the loss function.
+        gamma_margin (float): The gamma_margin parameter used in the loss function.
         num_entities (int): Total number of entities in the dataset for negative sampling.
         num_negatives (int): Number of negative samples per positive triple.
         writer (Any, optional): TensorBoard SummaryWriter for logging. Defaults to None.
@@ -149,7 +149,7 @@ def train_epoch(
         with torch.autocast(device_type=device.type, enabled=(scaler is not None)):
             pos_scores, neg_scores = model(pos_batch, neg_batch)
             loss_fn = LOSS_TYPE.get(loss_type, LOSS_TYPE["self_adversarial"])
-            loss = loss_fn(pos_scores, neg_scores, margin=margin, alpha=alpha)
+            loss = loss_fn(pos_scores, neg_scores, gamma_margin=gamma_margin, alpha=alpha)
 
         if scaler is not None:
             scaler.scale(loss).backward()

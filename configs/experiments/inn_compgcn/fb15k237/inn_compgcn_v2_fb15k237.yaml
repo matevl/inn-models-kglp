@@ -5,6 +5,7 @@ defaults:
 
 model:
   loss_type: "margin"
+  gamma_margin: 1.0
 
 training:
   epochs: 500

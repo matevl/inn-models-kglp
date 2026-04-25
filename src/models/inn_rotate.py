@@ -21,13 +21,13 @@ class RotatEEntityEmbedding(nn.Module):
 class INNRotatELinkPredictor(nn.Module):
     """Interval-based implementation of RotatE with isotropic geometry."""
     
-    def __init__(self, num_entities: int, num_relations: int, dim: int, margin: float = 1.0, init_rho: float = -5.0):
+    def __init__(self, num_entities: int, num_relations: int, dim: int, gamma_margin: float = 1.0, init_rho: float = -5.0):
         super().__init__()
         self.dim = dim
         self.entity_emb = RotatEEntityEmbedding(num_entities, dim, init_rho=init_rho)
         self.rel_center = nn.Embedding(num_relations, dim)
         self.rel_rho = nn.Embedding(num_relations, dim)
-        self.margin = margin
+        self.gamma_margin = gamma_margin
         self.init_rho = init_rho
         
         nn.init.uniform_(self.rel_center.weight, -math.pi, math.pi)

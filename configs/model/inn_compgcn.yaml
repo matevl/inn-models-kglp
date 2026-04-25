@@ -2,7 +2,6 @@ name: "inn_compgcn"
 
 dim: 500
 hidden_layers: []
-margin: 1.0
 init_rho: -5.0
 alpha: 1.0
 loss_type: "bce"

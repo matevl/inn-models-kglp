@@ -39,7 +39,7 @@ def load_model_from_checkpoint(
     checkpoint_data = load_checkpoint(checkpoint_path, device)
     cfg = checkpoint_data.get("config", {})
     dim = int(cfg.get("dim", default_dim))
-    margin = float(cfg.get("margin", default_margin))
+    gamma_margin = float(cfg.get("gamma_margin", default_margin))
     state_dict = checkpoint_data["model_state_dict"]
     model_type = _resolve_model_type(forced_model_type, cfg, state_dict)
 
@@ -57,7 +57,7 @@ def load_model_from_checkpoint(
         num_entities=int(checkpoint_data["num_entities"]),
         num_relations=int(checkpoint_data["num_relations"]),
         dim=dim,
-        margin=margin,
+        gamma_margin=gamma_margin,
         hidden_layers=hidden_layers,
     ).to(device)
     model.load_state_dict(clean_state_dict)

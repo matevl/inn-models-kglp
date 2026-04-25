@@ -5,7 +5,9 @@ defaults:
 
 model:
   loss_type: "self_adversarial"
+  gamma_margin: 9.0
   alpha: 1.0
+  dim: 1000
 
 training:
   epochs: 500

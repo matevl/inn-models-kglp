@@ -5,6 +5,7 @@ defaults:
 
 model:
   loss_type: "logsumexp"
+  gamma_margin: 2.0
 
 training:
   epochs: 500

@@ -36,7 +36,7 @@ def run_test(cfg: DictConfig) -> None:
         checkpoint_path=ckpt_path,
         device=device,
         default_dim=cfg.model.dim,
-        default_margin=cfg.model.margin,
+        default_margin=cfg.model.gamma_margin,
         forced_model_type=model_type,
         hidden_layers=cfg.model.get("hidden_layers", []),
     )

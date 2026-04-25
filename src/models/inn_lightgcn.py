@@ -70,7 +70,7 @@ class INNLightGCNLinkPredictor(nn.Module):
         num_entities: int,
         num_relations: int,
         dim: int,
-        margin: float = 1.0,
+        gamma_margin: float = 1.0,
         init_rho: float = -5.0,
     ):
         super().__init__()
@@ -78,7 +78,7 @@ class INNLightGCNLinkPredictor(nn.Module):
         self.rel_center = nn.Embedding(num_relations, dim)
         self.rel_rho = nn.Embedding(num_relations, dim)
         self.net = IntervalLightGCN(dim, max(dim, 64), dim, layers=2)
-        self.margin = margin
+        self.gamma_margin = gamma_margin
 
         nn.init.uniform_(self.rel_center.weight, -0.1, 0.1)
         nn.init.constant_(self.rel_rho.weight, init_rho)

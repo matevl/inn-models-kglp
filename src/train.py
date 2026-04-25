@@ -49,7 +49,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             num_entities=dataset.num_entities,
             num_relations=dataset.num_relations,
             dim=model_cfg.dim,
-            margin=model_cfg.margin,
+            gamma_margin=model_cfg.gamma_margin,
             init_rho=model_cfg.init_rho,
             hidden_layers=model_cfg.get("hidden_layers", []),
         ).to(device)
@@ -65,7 +65,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             num_entities=dataset.num_entities,
             num_relations=dataset.num_relations,
             dim=model_cfg.dim,
-            margin=model_cfg.margin,
+            gamma_margin=model_cfg.gamma_margin,
             init_rho=model_cfg.init_rho,
             hidden_layers=model_cfg.get("hidden_layers", []),
         ).to(device)
@@ -102,7 +102,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             loader=train_loader,
             optimizer=optimizer,
             device=device,
-            margin=model_cfg.margin,
+            gamma_margin=model_cfg.gamma_margin,
             num_entities=dataset.num_entities,
             num_negatives=cfg.training.num_negatives_train,
             alpha=model_cfg.alpha,

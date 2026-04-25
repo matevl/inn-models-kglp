@@ -95,7 +95,7 @@ class INNLinkPredictor(nn.Module):
         num_relations: int,
         dim: int,
         hidden_layers: list[int] | None = None,
-        margin: float = 1.0,
+        gamma_margin: float = 1.0,
         init_rho: float = -5.0,
     ):
         super().__init__()
@@ -104,7 +104,7 @@ class INNLinkPredictor(nn.Module):
         )
         self.rel_center = nn.Embedding(num_relations, dim)
         self.rel_rho = nn.Embedding(num_relations, dim)
-        self.margin = margin
+        self.gamma_margin = gamma_margin
 
         nn.init.uniform_(self.rel_center.weight, -0.1, 0.1)
         nn.init.constant_(self.rel_rho.weight, init_rho)
