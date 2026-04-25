@@ -12,3 +12,4 @@
 *runs/
 *.db-journal
 *experiments/
+/.direnv
