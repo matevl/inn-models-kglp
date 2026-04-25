@@ -4,7 +4,7 @@ defaults:
   - override /model: inn_compgcn
 
 model:
-  loss_type: "compgcn_bce"
+  loss_type: "bce"
   gamma_margin: 1.0
   dim: 200
 
@@ -12,7 +12,7 @@ training:
   epochs: 500
   batch_size: 128
   lr: 0.001
-  num_negatives_train: 256
+  num_negatives_train: 512
   log_interval: 10
 
 evaluation:
