@@ -1,0 +1,6 @@
+name: "inn_transe"
+
+dim: 200
+init_rho: -5.0
+alpha: 1.0
+loss_type: "bce"

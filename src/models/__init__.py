@@ -7,6 +7,7 @@ from .inn_ours_mlp import INNLinkPredictor
 from .inn_lightgcn import INNLightGCNLinkPredictor
 from .inn_compgcn import INNCompGCNLinkPredictor
 from .inn_rotate import INNRotatELinkPredictor
+from .inn_transe import INNTransELinkPredictor
 
 
 def infer_model_type_from_state_dict(state_dict: dict[str, torch.Tensor]) -> str:
@@ -15,6 +16,9 @@ def infer_model_type_from_state_dict(state_dict: dict[str, torch.Tensor]) -> str
     if any(k.startswith("layer.W_in.") for k in state_dict):
         return "inn_compgcn"
     if any(k.startswith("entity_emb.") for k in state_dict) and not any(k.startswith("layer.") for k in state_dict) and "net.layers.0.W.weight" not in state_dict:
+        # Check if it's rotate or transe
+        if "rel_center.weight" in state_dict and state_dict["rel_center.weight"].shape[1] == state_dict["entity_emb.center.weight"].shape[1]:
+            return "inn_transe"
         return "inn_rotate"
     if any(k.startswith("entity_emb.") for k in state_dict):
         return "inn_lightgcn"
@@ -57,6 +61,14 @@ def build_link_predictor(
         )
     if model_type == "inn_rotate":
         return INNRotatELinkPredictor(
+            num_entities=num_entities,
+            num_relations=num_relations,
+            dim=dim,
+            gamma_margin=gamma_margin,
+            init_rho=init_rho,
+        )
+    if model_type == "inn_transe":
+        return INNTransELinkPredictor(
             num_entities=num_entities,
             num_relations=num_relations,
             dim=dim,

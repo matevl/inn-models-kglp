@@ -4,7 +4,7 @@ defaults:
   - override /model: inn_ours_mlp
 
 model:
-  loss_type: "margin"
+  loss_type: "gamma_margin"
   gamma_margin: 2.0
 
 training:
