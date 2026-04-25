@@ -7,6 +7,7 @@ model:
   loss_type: "self_adversarial"
   gamma_margin: 1.0
   alpha: 1.0
+  dim: 200
 
 training:
   epochs: 500
