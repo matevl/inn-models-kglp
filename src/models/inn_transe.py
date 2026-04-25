@@ -55,7 +55,6 @@ class INNTransELinkPredictor(nn.Module):
         pos_triplets: torch.Tensor,
         neg_triplets: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        # Cache relation embeddings for positive samples
         rc, rr = self.get_relation(pos_triplets[:, 1])
 
         pos_h_idx = pos_triplets[:, 0]
@@ -89,6 +88,29 @@ class INNTransELinkPredictor(nn.Module):
         neg_scores = max_radius_sum_neg - distance_neg
 
         return pos_scores, neg_scores
+
+    def forward_1ton(self, pos_triplets: torch.Tensor) -> torch.Tensor:
+        """1-to-N scoring against all entities."""
+        num_ent = self.entity_emb.center.num_embeddings
+        all_entity_ids = torch.arange(num_ent, device=pos_triplets.device)
+        u_c, u_r = self.entity_emb(all_entity_ids)
+        
+        h_idx = pos_triplets[:, 0]
+        r_idx = pos_triplets[:, 1]
+        
+        hc, hr = u_c[h_idx], u_r[h_idx]
+        rc, rr = self.get_relation(r_idx)
+        
+        pred_c = hc + rc
+        pred_r = hr + rr
+        
+        diff_c = pred_c.unsqueeze(1) - u_c.unsqueeze(0)
+        distance = torch.norm(diff_c, p=1, dim=-1)
+        
+        sum_r = pred_r.unsqueeze(1) + u_r.unsqueeze(0)
+        max_radius_sum = sum_r.sum(dim=-1)
+        
+        return max_radius_sum - distance
 
     def get_radii_stats(self) -> dict[str, float]:
         with torch.no_grad():

@@ -174,6 +174,25 @@ class INNLightGCNLinkPredictor(nn.Module):
 
         return pos_scores, neg_scores
 
+    def forward_1ton(self, pos_triplets: torch.Tensor) -> torch.Tensor:
+        """1-to-N scoring against all entities."""
+        u_c, u_r = self.compute_all_embeddings()
+        rc, rr = self.get_relation(pos_triplets[:, 1])
+        
+        h_idx = pos_triplets[:, 0]
+        hc, hr = u_c[h_idx], u_r[h_idx]
+        
+        pred_c = hc + rc
+        pred_r = hr + rr
+        
+        diff_c = pred_c.unsqueeze(1) - u_c.unsqueeze(0)
+        distance = torch.norm(diff_c, p=1, dim=-1)
+        
+        sum_r = pred_r.unsqueeze(1) + u_r.unsqueeze(0)
+        max_radius_sum = sum_r.sum(dim=-1)
+        
+        return max_radius_sum - distance
+
     def get_radii_stats(self) -> dict[str, float]:
         with torch.no_grad():
             e_r = F.softplus(self.entity_emb.rho.weight)

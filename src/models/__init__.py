@@ -96,14 +96,28 @@ def bce_loss(
     neg_scores: torch.Tensor,
     gamma_margin: float = 1.0,
     alpha: float = 1.0,
+    label_smoothing: float = 0.1,
 ) -> torch.Tensor:
-    pos_loss = F.binary_cross_entropy_with_logits(
-        pos_scores, torch.ones_like(pos_scores)
-    )
-    neg_loss = F.binary_cross_entropy_with_logits(
-        neg_scores, torch.zeros_like(neg_scores)
-    )
+    pos_target = torch.full_like(pos_scores, 1.0 - label_smoothing)
+    neg_target = torch.zeros_like(neg_scores)
+
+    pos_loss = F.binary_cross_entropy_with_logits(pos_scores, pos_target)
+    neg_loss = F.binary_cross_entropy_with_logits(neg_scores, neg_target)
     return pos_loss + neg_loss
+
+
+def compgcn_bce_loss(
+    all_scores: torch.Tensor,
+    target_indices: torch.Tensor,
+    label_smoothing: float = 0.1,
+) -> torch.Tensor:
+    """Standard CompGCN loss: BCE with label smoothing for 1-to-N scoring."""
+    num_entities = all_scores.size(1)
+    
+    targets = torch.full_like(all_scores, label_smoothing / num_entities)
+    targets.scatter_(1, target_indices.unsqueeze(1), 1.0 - label_smoothing)
+    
+    return F.binary_cross_entropy_with_logits(all_scores, targets)
 
 
 def margin_ranking_loss(

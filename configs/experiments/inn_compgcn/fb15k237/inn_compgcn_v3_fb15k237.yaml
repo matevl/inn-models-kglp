@@ -4,7 +4,7 @@ defaults:
   - override /model: inn_compgcn
 
 model:
-  loss_type: "bce"
+  loss_type: "compgcn_bce"
   gamma_margin: 1.0
   dim: 200
 

@@ -109,6 +109,37 @@ class INNRotatELinkPredictor(nn.Module):
         rc_phase_neg = rc_phase.unsqueeze(1)
         rr_neg = rr.unsqueeze(1)
         
-        neg_scores = compute_score(neg_h_idx, neg_t_idx, rc_phase_neg, rr_neg)
+        neg_scores = compute_score(neg_h_idx, neg_t_idx, rc_phase.unsqueeze(1), rr.unsqueeze(1))
 
         return pos_scores, neg_scores
+
+    def forward_1ton(self, pos_triplets: torch.Tensor) -> torch.Tensor:
+        """1-to-N scoring against all entities."""
+        num_ent = self.entity_emb.center.num_embeddings
+        device = pos_triplets.device
+        all_entity_ids = torch.arange(num_ent, device=device)
+        u_c, u_r = self.entity_emb(all_entity_ids)
+        
+        h_idx = pos_triplets[:, 0]
+        r_idx = pos_triplets[:, 1]
+        
+        hc, hr = self.entity_emb(h_idx)
+        rc_phase, rr = self.get_relation(r_idx)
+        
+        hc_re, hc_im = torch.chunk(hc, 2, dim=-1)
+        u_re, u_im = torch.chunk(u_c, 2, dim=-1)
+        
+        cos_r = torch.cos(rc_phase)
+        sin_r = torch.sin(rc_phase)
+        
+        pred_re = hc_re * cos_r - hc_im * sin_r
+        pred_im = hc_re * sin_r + hc_im * cos_r
+        pred_r = hr + rr
+        
+        diff_re = pred_re.unsqueeze(1) - u_re.unsqueeze(0)
+        diff_im = pred_im.unsqueeze(1) - u_im.unsqueeze(0)
+        
+        dist_c = torch.sqrt(diff_re**2 + diff_im**2).sum(dim=-1)
+        sum_r = (pred_r.unsqueeze(1) + u_r.unsqueeze(0)).sum(dim=-1)
+        
+        return sum_r - dist_c

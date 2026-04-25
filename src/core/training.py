@@ -6,7 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.dataloader import default_collate
 
-from models import LOSS_TYPE
+from models import LOSS_TYPE, compgcn_bce_loss
 
 
 def sample_negative_triples(
@@ -136,20 +136,33 @@ def train_epoch(
 
     for batch_idx, pos_batch in enumerate(loader):
         pos_batch = pos_batch.to(device, non_blocking=True)
-        # Vectorized negative sampling on device
-        neg_batch = sample_negative_triples(
-            pos_batch,
-            num_entities=num_entities,
-            num_negatives=num_negatives,
-            device=device,
-        )
-
         optimizer.zero_grad(set_to_none=True)
 
         with torch.autocast(device_type=device.type, enabled=(scaler is not None)):
-            pos_scores, neg_scores = model(pos_batch, neg_batch)
-            loss_fn = LOSS_TYPE.get(loss_type, LOSS_TYPE["self_adversarial"])
-            loss = loss_fn(pos_scores, neg_scores, gamma_margin=gamma_margin, alpha=alpha)
+            if loss_type == "compgcn_bce":
+                if not hasattr(model, "forward_1ton"):
+                    all_scores = model.inn_score(pos_batch[:, 0], pos_batch[:, 1], torch.arange(num_entities, device=device))
+                else:
+                    all_scores = model.forward_1ton(pos_batch)
+                
+                target_indices = pos_batch[:, 2]
+                loss = compgcn_bce_loss(all_scores, target_indices)
+                
+                with torch.no_grad():
+                    acc_tensor = (all_scores.argmax(dim=1) == target_indices).float().mean()
+            else:
+                neg_batch = sample_negative_triples(
+                    pos_batch,
+                    num_entities=num_entities,
+                    num_negatives=num_negatives,
+                    device=device,
+                )
+                pos_scores, neg_scores = model(pos_batch, neg_batch)
+                loss_fn = LOSS_TYPE.get(loss_type, LOSS_TYPE["self_adversarial"])
+                loss = loss_fn(pos_scores, neg_scores, gamma_margin=gamma_margin, alpha=alpha)
+                
+                with torch.no_grad():
+                    acc_tensor = torch.mean((pos_scores.unsqueeze(-1) > neg_scores).float())
 
         if scaler is not None:
             scaler.scale(loss).backward()
@@ -163,9 +176,6 @@ def train_epoch(
         total_items += batch_items
 
         batch_loss_tensor = loss.detach()
-
-        with torch.no_grad():
-            acc_tensor = torch.mean((pos_scores.unsqueeze(-1) > neg_scores).float())
 
         iteration_metrics.append(
             {
