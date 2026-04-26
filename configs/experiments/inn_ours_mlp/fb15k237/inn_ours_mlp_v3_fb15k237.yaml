@@ -4,7 +4,8 @@ defaults:
   - override /model: inn_ours_mlp
 
 model:
-  loss_type: "infonce"
+  loss_type: "bce"
+  gamma_margin: 2.0
 
 training:
   epochs: 500
@@ -19,5 +20,5 @@ evaluation:
   entity_chunk_size: 512
   batch_size: 512
 
-checkpoint: "inn_ours_mlp_fb15k237_v4.pt"
-experiment_name: "inn_ours_mlp_fb15k237_v4"
+checkpoint: "inn_ours_mlp_fb15k237_v3.pt"
+experiment_name: "inn_ours_mlp_fb15k237_v3"

@@ -46,7 +46,7 @@ def test_10_epoch_logging_small_dataset_mlp_layers(small_dataset, caplog, tmp_pa
             "model": {
                 "name": "inn_ours_mlp",
                 "dim": 16,
-                "margin": 1.0,
+                "gamma_margin": 1.0,
                 "init_rho": -5.0,
                 "hidden_layers": [2],
                 "alpha": 1.0,

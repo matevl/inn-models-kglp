@@ -1,0 +1,26 @@
+# @package _global_
+defaults:
+  - override /dataset: fb15k237
+  - override /model: inn_rotate
+
+model:
+  loss_type: "logsumexp"
+  gamma_margin: 9.0
+  alpha: 1.0
+  dim: 1000
+
+training:
+  epochs: 500
+  batch_size: 2048
+  lr: 0.001
+  num_negatives_train: 256
+  log_interval: 10
+
+evaluation:
+  split: "test"
+  num_negatives: -1
+  entity_chunk_size: 512
+  batch_size: 512
+
+checkpoint: "inn_rotate_fb15k237_v1.pt"
+experiment_name: "inn_rotate_fb15k237_v1"

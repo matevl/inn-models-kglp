@@ -19,6 +19,7 @@ from utils.runtime import (
 
 LOGGER = configure_logging()
 
+
 def run_test(cfg: DictConfig) -> None:
     set_seed(cfg.seed)
     device = select_device(cfg.device)
@@ -35,10 +36,13 @@ def run_test(cfg: DictConfig) -> None:
         checkpoint_path=ckpt_path,
         device=device,
         default_dim=cfg.model.dim,
-        default_margin=cfg.model.margin,
+        default_margin=cfg.model.gamma_margin,
         forced_model_type=model_type,
         hidden_layers=cfg.model.get("hidden_layers", []),
     )
+
+    if hasattr(model, "build_graph"):
+        model.build_graph(dataset.train)
 
     split = cfg.evaluation.split
     split_tensor = dataset.valid if split == "valid" else dataset.test
@@ -48,9 +52,7 @@ def run_test(cfg: DictConfig) -> None:
     try:
         writer.add_text("hyperparameters", str(cfg))
 
-        LOGGER.info(
-            "[ACTION] Starting evaluation on %s split...", split
-        )
+        LOGGER.info("[ACTION] Starting evaluation on %s split...", split)
         metrics = None
         metrics = evaluate_model(
             model=model,
@@ -70,7 +72,7 @@ def run_test(cfg: DictConfig) -> None:
         writer.close()
 
         if metrics is not None:
-            # Format and display results nicely
+            # Render evaluation metrics summary
             metrics_table = format_metrics_table(
                 metrics,
                 title=f"Evaluation Results ({split.upper()} split)",

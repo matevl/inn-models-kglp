@@ -1,4 +1,4 @@
-name: "inn_lightgcn"
+name: "inn_rotate"
 
 dim: 500
 hidden_layers: []

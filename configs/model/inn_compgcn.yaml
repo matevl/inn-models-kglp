@@ -1,6 +1,6 @@
-name: "inn_lightgcn"
+name: "inn_compgcn"
 
-dim: 500
+dim: 200
 hidden_layers: []
 init_rho: -5.0
 alpha: 1.0

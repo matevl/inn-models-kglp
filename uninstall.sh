@@ -24,6 +24,8 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     rm -rf checkpoints
     rm -rf datasets
     rm -rf runs
+    rm -rf .pytest_cache
+    rm -rf experiments
 
     echo -e "${GREEN}Cleanup complete.${NC}"
 else

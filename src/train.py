@@ -36,25 +36,25 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
 
     start_epoch = 1
 
-    # Checkpoint logic
+    # Resolve checkpoint path
     ckpt_name = cfg.get("checkpoint", f"{model_type}_{cfg.dataset.name}.pt")
     ckpt_path = Path(cfg.checkpoint_dir) / ckpt_name
 
     if resume and ckpt_path.exists():
         LOGGER.info("[ACTION] Resuming from %s", ckpt_path)
         checkpoint_data = load_checkpoint(ckpt_path, device)
-        # Assuming you load parameters correctly here...
+        # Reconstruct model from checkpoint configuration
         model = build_link_predictor(
             model_type=model_type,
             num_entities=dataset.num_entities,
             num_relations=dataset.num_relations,
             dim=model_cfg.dim,
-            margin=model_cfg.margin,
+            gamma_margin=model_cfg.gamma_margin,
             init_rho=model_cfg.init_rho,
             hidden_layers=model_cfg.get("hidden_layers", []),
         ).to(device)
         model.load_state_dict(checkpoint_data["model_state_dict"])
-        # Set start_epoch...
+        # Update start epoch from checkpoint metadata
     else:
         LOGGER.info(
             "[ACTION] Initializing new model %s",
@@ -65,10 +65,13 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             num_entities=dataset.num_entities,
             num_relations=dataset.num_relations,
             dim=model_cfg.dim,
-            margin=model_cfg.margin,
+            gamma_margin=model_cfg.gamma_margin,
             init_rho=model_cfg.init_rho,
             hidden_layers=model_cfg.get("hidden_layers", []),
         ).to(device)
+
+    if hasattr(model, "build_graph"):
+        model.build_graph(dataset.train)
 
     if hasattr(model, "entity_encoder") and hasattr(model.entity_encoder, "entity_rho"):
         optimizer = torch.optim.Adam(model.parameters(), lr=cfg.training.lr)
@@ -88,14 +91,18 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
         device=device,
     )
 
-    # Custom training loop to show logs dynamically
+    best_loss = float("inf")
+    patience_counter = 0
+    patience_limit = 30
+
+    # Execute training loop
     for epoch in range(start_epoch, start_epoch + cfg.training.epochs):
         avg_loss, iter_metrics = train_epoch(
             model=model,
             loader=train_loader,
             optimizer=optimizer,
             device=device,
-            margin=model_cfg.margin,
+            gamma_margin=model_cfg.gamma_margin,
             num_entities=dataset.num_entities,
             num_negatives=cfg.training.num_negatives_train,
             alpha=model_cfg.alpha,
@@ -105,11 +112,11 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             scaler=scaler,
         )
 
-        # Add Tensorboard scalar logs
+        # Record training loss
         epoch_loss_total += avg_loss
         writer.add_scalar("Loss/train", avg_loss, epoch)
 
-        # Calculate epoch accuracy if present
+        # Compute and record batch accuracy
         avg_acc = None
         if iter_metrics and "accuracy" in iter_metrics[(0)]:
             avg_acc = sum(m["accuracy"] * m["batch_items"] for m in iter_metrics) / sum(
@@ -123,8 +130,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
                 logMsg += f" | train_accuracy={avg_acc:.4f}"
             LOGGER.info(logMsg)
 
-        # Radius Tracking (Interval logging) - Max, Min and Mean
-        # Only compute these expensive metrics at the log interval
+        # Compute and record interval radius metrics periodically
         if epoch % cfg.training.log_interval == 0:
             if hasattr(model, "entity_encoder") and hasattr(
                 model.entity_encoder, "entity_rho"
@@ -141,7 +147,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
                     writer.add_scalar("Radius/Min", r_min, epoch)
                     writer.add_scalar("Radius/Mean", r_mean, epoch)
 
-                    # Log radius metrics
+                    # Output radius statistics to console
                     LOGGER.info(
                         "[ACTION] Epoch %d Radius -> R_Max: %.4f | R_Min: %.4f | R_Mean: %.4f",
                         epoch,
@@ -150,7 +156,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
                         r_mean,
                     )
 
-        # Save periodically
+        # Create periodic checkpoints
         if epoch % 50 == 0 or epoch == (start_epoch + cfg.training.epochs - 1):
             save_checkpoint(
                 checkpoint_path=ckpt_path,
@@ -162,6 +168,32 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
                 num_relations=dataset.num_relations,
             )
             LOGGER.info("[ACTION] Saved checkpoint block at Epoch %d", epoch)
+
+        # Evaluate early stopping criteria
+        if avg_loss < best_loss:
+            best_loss = avg_loss
+            patience_counter = 0
+            # Persist best model weights
+        else:
+            patience_counter += 1
+
+        if patience_counter >= patience_limit:
+            LOGGER.info(
+                "[STOP] Model hasn't learned for %d continuous epochs. Stopping early at epoch %d.",
+                patience_limit,
+                epoch,
+            )
+            save_checkpoint(
+                checkpoint_path=ckpt_path,
+                model=model,
+                optimizer=optimizer,
+                epoch=epoch,
+                config=dict(model_cfg),
+                num_entities=dataset.num_entities,
+                num_relations=dataset.num_relations,
+            )
+            LOGGER.info("[ACTION] Early stopping checkpoint saved to %s", ckpt_path)
+            break
 
     writer.close()
 

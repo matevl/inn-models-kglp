@@ -29,3 +29,4 @@ clean: ## Clean python cache and temporary files
 	rm -rf checkpoints/*
 	rm -rf datasets/*
 	rm -rf runs/*
+	rm -rf experiments/*
