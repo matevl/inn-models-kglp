@@ -94,6 +94,27 @@ All experiments use TensorBoard for tracking. Metrics such as `Radius/Max`, `Rad
 tensorboard --logdir runs
 ```
 
+## Model Geometry Analysis (Radii Analysis)
+
+To analyze the learned geometry of a trained model (specifically the "rays" or radii of the intervals), you can use the dedicated analysis script. This tool helps debug the structure of the embedding space after training.
+
+### Features
+- **Architecture Agnostic**: Detects and handles GCN, MLP, RotatE, and TransE models automatically.
+- **Base vs. Propagated Radii**: Analyzes both raw embeddings and final intervals after transformation layers.
+- **Visualizations**: Generates histograms of radius distributions.
+- **Outlier Detection**: Identifies entities with unusually large or small geometry.
+
+### Usage
+```bash
+# Simple analysis for TransE/RotatE
+python src/analyze_radii.py --checkpoint checkpoints/my_model.pt --output_dir analysis_results
+
+# Analysis for GCN/MLP models (requires dataset to build the graph)
+python src/analyze_radii.py --checkpoint checkpoints/gcn_model.pt --dataset datasets/FB15k-237 --output_dir analysis_results
+```
+
+The script generates an `analysis_report.json` and several distribution plots in the specified output directory.
+
 ## Cleanup
 
 To reset everything (cache, temporary files):
