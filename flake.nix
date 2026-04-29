@@ -25,7 +25,7 @@
             };
           };
 
-          python = pkgs.python311;
+          python = pkgs.python312;
 
           libpath =
             with pkgs;
@@ -46,6 +46,7 @@
               python
               python.pkgs.venvShellHook
               uv
+              python.pkgs.tensorboard
               git
               curl
               bash
@@ -60,6 +61,16 @@
 
               # Force uv to use the Nix-provided Python (prevents missing Python.h)
               export UV_PYTHON_DOWNLOADS="never"
+
+              # Recreate venv if Python version changed
+              if [ -d "$venvDir" ]; then
+                VENV_PYTHON_VERSION=$("$venvDir/bin/python" --version 2>/dev/null || echo "none")
+                FLAKE_PYTHON_VERSION=$("${python.interpreter}" --version)
+                if [ "$VENV_PYTHON_VERSION" != "$FLAKE_PYTHON_VERSION" ]; then
+                  echo "Python version mismatch (Venv: $VENV_PYTHON_VERSION, Flake: $FLAKE_PYTHON_VERSION). Recreating .venv..."
+                  rm -rf "$venvDir"
+                fi
+              fi
 
               if [ ! -d "$venvDir" ]; then
                   uv venv --python="${python.interpreter}" "$venvDir"

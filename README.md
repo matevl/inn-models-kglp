@@ -22,7 +22,7 @@ The explicit goal of this project is to **compare different approaches of INN** 
 
 ### Standard Installation
 **Requirements:**
-- Python 3.10+
+- Python 3.12+
 - PyTorch 2.0+
 - Optional: [uv](https://github.com/astral-sh/uv) (for faster dependency installation)
 
@@ -37,7 +37,7 @@ make setup
 ```
 
 ### Nix / NixOS Installation (Recommended)
-This project comes with a fully declarative `flake.nix` that automatically sets up the environment, an isolated Python 3.11, `uv`, and all C++ headers required for `torch.compile`. It also automatically configures **Hydra bash auto-completion**.
+This project comes with a fully declarative `flake.nix` that automatically sets up the environment, an isolated Python 3.12, `uv`, and all C++ headers required for `torch.compile`. It also automatically configures **Hydra bash auto-completion**.
 
 Simply run:
 ```bash
