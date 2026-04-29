@@ -105,6 +105,9 @@ def analyze_radii(
     checkpoint_data = load_checkpoint(ckpt_path, device)
     state_dict = checkpoint_data["model_state_dict"]
 
+    # Clean state_dict keys if they come from torch.compile (_orig_mod. prefix)
+    state_dict = {k.replace("_orig_mod.", ""): v for k, v in state_dict.items()}
+
     # Identify model architecture from weight structure
     model_type = infer_model_type_from_state_dict(state_dict)
     config = checkpoint_data.get("config", {})
