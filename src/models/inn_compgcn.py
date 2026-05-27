@@ -214,9 +214,9 @@ class INNCompGCNLinkPredictor(nn.Module):
         pred_c = hc + rc
         pred_r = hr + rr
 
-        distance = torch.norm(pred_c - tc, p=1, dim=-1)
-        max_radius_sum = torch.norm(pred_r + tr, p=1, dim=-1)
-        return max_radius_sum - distance
+        center_diff = torch.abs(pred_c - tc)
+        margin_per_dim = F.relu(center_diff - (pred_r + tr))
+        return -torch.norm(margin_per_dim, p=1, dim=-1)
 
     def forward(
         self, pos_triplets: torch.Tensor, neg_triplets: torch.Tensor
@@ -238,9 +238,9 @@ class INNCompGCNLinkPredictor(nn.Module):
         pred_c = hc + rc
         pred_r = hr + rr
 
-        distance = torch.norm(pred_c - tc, p=1, dim=-1)
-        max_radius_sum = (pred_r + tr).sum(dim=-1)
-        pos_scores = max_radius_sum - distance
+        center_diff = torch.abs(pred_c - tc)
+        margin_per_dim = F.relu(center_diff - (pred_r + tr))
+        pos_scores = -torch.norm(margin_per_dim, p=1, dim=-1)
 
         hc_neg, hr_neg = u_c[neg_h_idx], u_r[neg_h_idx]
         tc_neg, tr_neg = u_c[neg_t_idx], u_r[neg_t_idx]
@@ -249,9 +249,9 @@ class INNCompGCNLinkPredictor(nn.Module):
         pred_c_neg = hc_neg + rc_neg
         pred_r_neg = hr_neg + rr_neg
 
-        distance_neg = torch.norm(pred_c_neg - tc_neg, p=1, dim=-1)
-        max_radius_sum_neg = (pred_r_neg + tr_neg).sum(dim=-1)
-        neg_scores = max_radius_sum_neg - distance_neg
+        center_diff_neg = torch.abs(pred_c_neg - tc_neg)
+        margin_per_dim_neg = F.relu(center_diff_neg - (pred_r_neg + tr_neg))
+        neg_scores = -torch.norm(margin_per_dim_neg, p=1, dim=-1)
 
         return pos_scores, neg_scores
 
@@ -272,6 +272,5 @@ class INNCompGCNLinkPredictor(nn.Module):
         distance = torch.norm(diff_c, p=1, dim=-1)
 
         sum_r = pred_r.unsqueeze(1) + u_r.unsqueeze(0)
-        max_radius_sum = sum_r.sum(dim=-1)
-
-        return max_radius_sum - distance
+        margin_per_dim = F.relu(diff_c.abs() - sum_r)
+        return -torch.norm(margin_per_dim, p=1, dim=-1)

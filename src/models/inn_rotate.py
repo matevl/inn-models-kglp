@@ -151,7 +151,7 @@ class INNRotatELinkPredictor(nn.Module):
         diff_re = pred_re.unsqueeze(1) - u_re.unsqueeze(0)
         diff_im = pred_im.unsqueeze(1) - u_im.unsqueeze(0)
 
-        dist_c = torch.sqrt(diff_re**2 + diff_im**2).sum(dim=-1)
-        sum_r = (pred_r.unsqueeze(1) + u_r.unsqueeze(0)).sum(dim=-1)
-
-        return sum_r - dist_c
+        center_dist = torch.sqrt(diff_re**2 + diff_im**2)
+        sum_r = pred_r.unsqueeze(1) + u_r.unsqueeze(0)
+        margin_per_dim = F.relu(center_dist - sum_r)
+        return -torch.norm(margin_per_dim, p=1, dim=-1)
