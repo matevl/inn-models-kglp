@@ -62,7 +62,7 @@ def _build_vocab(
     entities = set()
     relations = set()
 
-    for h, r, t in train:
+    for h, r, t in [*train, *valid, *test]:
         entities.add(h)
         entities.add(t)
         relations.add(r)
