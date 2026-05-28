@@ -52,6 +52,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             gamma_margin=model_cfg.gamma_margin,
             init_rho=model_cfg.init_rho,
             hidden_layers=model_cfg.get("hidden_layers", []),
+            edge_dropout_p=model_cfg.get("edge_dropout_p", 0.0),
         ).to(device)
         model.load_state_dict(checkpoint_data["model_state_dict"])
         # Update start epoch from checkpoint metadata
@@ -68,6 +69,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             gamma_margin=model_cfg.gamma_margin,
             init_rho=model_cfg.init_rho,
             hidden_layers=model_cfg.get("hidden_layers", []),
+            edge_dropout_p=model_cfg.get("edge_dropout_p", 0.0),
         ).to(device)
 
     if hasattr(model, "build_graph"):

@@ -62,6 +62,7 @@ def build_link_predictor(
     gamma_margin: float,
     init_rho: float = -5.0,
     hidden_layers: list[int] | None = None,
+    edge_dropout_p: float = 0.0,
 ) -> nn.Module:
     """
     Factory function to instantiate the appropriate LinkPredictor model.
@@ -82,6 +83,7 @@ def build_link_predictor(
             dim=dim,
             gamma_margin=gamma_margin,
             init_rho=init_rho,
+            edge_dropout_p=edge_dropout_p,
         )
     if model_type == "inn_compgcn":
         return INNCompGCNLinkPredictor(
@@ -90,6 +92,7 @@ def build_link_predictor(
             dim=dim,
             gamma_margin=gamma_margin,
             init_rho=init_rho,
+            edge_dropout_p=edge_dropout_p,
         )
     if model_type == "inn_rotate":
         return INNRotatELinkPredictor(

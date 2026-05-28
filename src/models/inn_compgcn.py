@@ -105,6 +105,7 @@ class INNCompGCNLinkPredictor(nn.Module):
         dim: int,
         gamma_margin: float = 1.0,
         init_rho: float = -5.0,
+        edge_dropout_p: float = 0.0,
     ):
         super().__init__()
         self.entity_emb = IntervalEntityEmbedding(num_entities, dim, init_rho=init_rho)
@@ -112,6 +113,7 @@ class INNCompGCNLinkPredictor(nn.Module):
         self.rel_rho = nn.Embedding(num_relations, dim)
         self.layer = CompGCNIntervalLayer(dim, dim, init_rho=init_rho)
         self.gamma_margin = gamma_margin
+        self.edge_dropout_p = edge_dropout_p
 
         nn.init.uniform_(self.rel_center.weight, -0.1, 0.1)
         nn.init.constant_(self.rel_rho.weight, init_rho)
@@ -131,20 +133,25 @@ class INNCompGCNLinkPredictor(nn.Module):
 
     def build_graph(self, train_triples: torch.Tensor) -> None:
         """Construct the graph components for message passing.
-        Note: If data leakage occurs (accuracy 99%), edge dropout should be applied here.
+        Edge dropout is applied during training to prevent data leakage.
         """
         num_ent = self.entity_emb.center.num_embeddings
         device = self.entity_emb.center.weight.device
 
+        triples = train_triples.clone()
+        if self.edge_dropout_p > 0.0 and self.training:
+            mask = torch.rand(len(triples), device=device) > self.edge_dropout_p
+            triples = triples[mask]
+
         # IN edges
-        self.in_row = train_triples[:, 2].to(device)
-        self.in_col = train_triples[:, 0].to(device)
-        self.in_type = train_triples[:, 1].to(device)
+        self.in_row = triples[:, 2].to(device)
+        self.in_col = triples[:, 0].to(device)
+        self.in_type = triples[:, 1].to(device)
 
         # OUT edges
-        self.out_row = train_triples[:, 0].to(device)
-        self.out_col = train_triples[:, 2].to(device)
-        self.out_type = train_triples[:, 1].to(device)
+        self.out_row = triples[:, 0].to(device)
+        self.out_col = triples[:, 2].to(device)
+        self.out_type = triples[:, 1].to(device)
 
         # LOOP edges
         self.loop_row = torch.arange(num_ent, device=device)

@@ -125,6 +125,7 @@ def analyze_radii(
         gamma_margin=config.get("gamma_margin", 1.0),
         init_rho=config.get("init_rho", -5.0),
         hidden_layers=config.get("hidden_layers", []),
+        edge_dropout_p=0.0,
     ).to(device)
     model.load_state_dict(state_dict)
     model.eval()

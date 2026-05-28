@@ -59,6 +59,7 @@ def load_model_from_checkpoint(
         dim=dim,
         gamma_margin=gamma_margin,
         hidden_layers=hidden_layers,
+        edge_dropout_p=0.0,
     ).to(device)
     model.load_state_dict(clean_state_dict)
     return model, checkpoint_data, model_type
