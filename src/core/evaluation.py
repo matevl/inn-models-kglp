@@ -10,6 +10,37 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 
+def _compute_cached_embeddings(model: nn.Module):
+    compute_all_embeddings = getattr(model, "compute_all_embeddings", None)
+    if callable(compute_all_embeddings):
+        return compute_all_embeddings()
+    return None
+
+
+def _score_triples(
+    model: nn.Module,
+    cached_embeddings,
+    h_idx: torch.Tensor,
+    r_idx: torch.Tensor,
+    t_idx: torch.Tensor,
+) -> torch.Tensor:
+    if cached_embeddings is None:
+        return model.inn_score(h_idx, r_idx, t_idx)
+
+    u_c, u_r, rel_c, rel_r = cached_embeddings
+
+    hc, hr = u_c[h_idx], u_r[h_idx]
+    tc, tr = u_c[t_idx], u_r[t_idx]
+    rc, rr = rel_c[r_idx], rel_r[r_idx]
+
+    pred_c = hc + rc
+    pred_r = hr + rr
+
+    center_diff = torch.abs(pred_c - tc)
+    margin_per_dim = torch.relu(center_diff - (pred_r + tr))
+    return -torch.norm(margin_per_dim, p=1, dim=-1)
+
+
 @torch.no_grad()
 def evaluate_approx_ranking(
     model: nn.Module,
@@ -76,7 +107,15 @@ def evaluate_approx_ranking(
             true_r = batch[:, 1]
             true_t = batch[:, 2]
 
-            true_scores = model.inn_score(true_h, true_r, true_t)
+            cached_embeddings = _compute_cached_embeddings(model)
+
+            true_scores = _score_triples(
+                model,
+                cached_embeddings,
+                true_h,
+                true_r,
+                true_t,
+            )
 
             # Right Rank (negate tails)
             neg_tails = torch.randint(
@@ -135,7 +174,9 @@ def evaluate_approx_ranking(
             for start_idx in range(0, rep_h_rt.size(0), max_chunk_elems):
                 end_idx = start_idx + max_chunk_elems
                 neg_scores_list_rt.append(
-                    model.inn_score(
+                    _score_triples(
+                        model,
+                        cached_embeddings,
                         rep_h_rt[start_idx:end_idx],
                         rep_r_rt[start_idx:end_idx],
                         flat_t_rt[start_idx:end_idx],
@@ -156,7 +197,9 @@ def evaluate_approx_ranking(
             for start_idx in range(0, flat_h_lf.size(0), max_chunk_elems):
                 end_idx = start_idx + max_chunk_elems
                 neg_scores_list_lf.append(
-                    model.inn_score(
+                    _score_triples(
+                        model,
+                        cached_embeddings,
                         flat_h_lf[start_idx:end_idx],
                         rep_r_lf[start_idx:end_idx],
                         rep_t_lf[start_idx:end_idx],
@@ -252,7 +295,15 @@ def evaluate_exact_ranking_all_entities(
             true_r = batch[:, 1]
             true_t = batch[:, 2]
 
-            true_scores = model.inn_score(true_h, true_r, true_t)
+            cached_embeddings = _compute_cached_embeddings(model)
+
+            true_scores = _score_triples(
+                model,
+                cached_embeddings,
+                true_h,
+                true_r,
+                true_t,
+            )
 
             rank_counts_rt = torch.zeros(bsz, dtype=torch.long, device=device)
             rank_counts_lf = torch.zeros(bsz, dtype=torch.long, device=device)
@@ -268,18 +319,26 @@ def evaluate_exact_ranking_all_entities(
                 rep_r_rt = true_r.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
                 rep_t_rt = chunk_ents.unsqueeze(0).expand(bsz, -1).reshape(-1)
 
-                chunk_scores_rt = model.inn_score(rep_h_rt, rep_r_rt, rep_t_rt).reshape(
-                    bsz, chunk_size
-                )
+                chunk_scores_rt = _score_triples(
+                    model,
+                    cached_embeddings,
+                    rep_h_rt,
+                    rep_r_rt,
+                    rep_t_rt,
+                ).reshape(bsz, chunk_size)
 
                 # Left Rank chunk
                 rep_h_lf = chunk_ents.unsqueeze(0).expand(bsz, -1).reshape(-1)
                 rep_r_lf = true_r.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
                 rep_t_lf = true_t.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
 
-                chunk_scores_lf = model.inn_score(rep_h_lf, rep_r_lf, rep_t_lf).reshape(
-                    bsz, chunk_size
-                )
+                chunk_scores_lf = _score_triples(
+                    model,
+                    cached_embeddings,
+                    rep_h_lf,
+                    rep_r_lf,
+                    rep_t_lf,
+                ).reshape(bsz, chunk_size)
 
                 for i in range(bsz):
                     h, r, t = true_h[i].item(), true_r[i].item(), true_t[i].item()

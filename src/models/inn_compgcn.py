@@ -164,8 +164,6 @@ class INNCompGCNLinkPredictor(nn.Module):
         r_r = F.softplus(self.rel_rho(idx))
         return c_r, r_r
 
-
-
     def compute_all_embeddings(
         self,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:

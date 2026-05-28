@@ -133,17 +133,19 @@ def train_epoch(
     total_loss = 0.0
     total_items = 0
     iteration_metrics = []
+    all_entity_ids = torch.arange(num_entities, device=device)
+    has_forward_1ton = hasattr(model, "forward_1ton")
 
     for batch_idx, pos_batch in enumerate(loader):
         pos_batch = pos_batch.to(device, non_blocking=True)
 
         with torch.autocast(device_type=device.type, enabled=(scaler is not None)):
             if loss_type == "compgcn_bce":
-                if not hasattr(model, "forward_1ton"):
+                if not has_forward_1ton:
                     all_scores = model.inn_score(
                         pos_batch[:, 0],
                         pos_batch[:, 1],
-                        torch.arange(num_entities, device=device),
+                        all_entity_ids,
                     )
                 else:
                     all_scores = model.forward_1ton(pos_batch)
