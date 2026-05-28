@@ -129,10 +129,6 @@ class INNCompGCNLinkPredictor(nn.Module):
         self.register_buffer("loop_row", None, persistent=False)
         self.register_buffer("loop_col", None, persistent=False)
 
-        self._cached_embeddings: (
-            tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor] | None
-        ) = None
-
     def build_graph(self, train_triples: torch.Tensor) -> None:
         """Construct the graph components for message passing.
         Note: If data leakage occurs (accuracy 99%), edge dropout should be applied here.
@@ -168,21 +164,7 @@ class INNCompGCNLinkPredictor(nn.Module):
         r_r = F.softplus(self.rel_rho(idx))
         return c_r, r_r
 
-    def clear_embedding_cache(self) -> None:
-        self._cached_embeddings = None
 
-    def refresh_embedding_cache(
-        self,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        self._cached_embeddings = self.compute_all_embeddings()
-        return self._cached_embeddings
-
-    def get_all_embeddings(
-        self,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        if self._cached_embeddings is None:
-            return self.compute_all_embeddings()
-        return self._cached_embeddings
 
     def compute_all_embeddings(
         self,
@@ -242,7 +224,7 @@ class INNCompGCNLinkPredictor(nn.Module):
         self, pos_triplets: torch.Tensor, neg_triplets: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass for pairwise training."""
-        u_c, u_r, rel_c, rel_r = self.get_all_embeddings()
+        u_c, u_r, rel_c, rel_r = self.compute_all_embeddings()
 
         pos_h_idx = pos_triplets[:, 0]
         pos_t_idx = pos_triplets[:, 2]
@@ -277,7 +259,7 @@ class INNCompGCNLinkPredictor(nn.Module):
 
     def forward_1ton(self, pos_triplets: torch.Tensor) -> torch.Tensor:
         """1-to-N scoring against all entities."""
-        u_c, u_r, rel_c, rel_r = self.get_all_embeddings()
+        u_c, u_r, rel_c, rel_r = self.compute_all_embeddings()
 
         h_idx = pos_triplets[:, 0]
         r_idx = pos_triplets[:, 1]

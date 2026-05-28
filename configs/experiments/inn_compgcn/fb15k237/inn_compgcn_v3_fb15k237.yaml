@@ -10,7 +10,7 @@ model:
 
 training:
   epochs: 500
-  batch_size: 128
+  batch_size: 256
   lr: 0.001
   num_negatives_train: 512
   log_interval: 10

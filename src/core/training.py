@@ -130,20 +130,9 @@ def train_epoch(
     """
     model.train()
 
-    refresh_embeddings = getattr(model, "refresh_embedding_cache", None)
-    clear_embeddings = getattr(model, "clear_embedding_cache", None)
-    use_epoch_cache = callable(refresh_embeddings) and callable(clear_embeddings)
-
-    if use_epoch_cache:
-        refresh_embeddings()
-
     total_loss = 0.0
     total_items = 0
     iteration_metrics = []
-    num_batches = len(loader)
-
-    if use_epoch_cache:
-        optimizer.zero_grad(set_to_none=True)
 
     for batch_idx, pos_batch in enumerate(loader):
         pos_batch = pos_batch.to(device, non_blocking=True)
@@ -184,21 +173,14 @@ def train_epoch(
                         (pos_scores.unsqueeze(-1) > neg_scores).float()
                     )
 
-        if use_epoch_cache:
-            retain_graph = batch_idx < num_batches - 1
-            if scaler is not None:
-                scaler.scale(loss).backward(retain_graph=retain_graph)
-            else:
-                loss.backward(retain_graph=retain_graph)
+        optimizer.zero_grad(set_to_none=True)
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
         else:
-            optimizer.zero_grad(set_to_none=True)
-            if scaler is not None:
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss.backward()
-                optimizer.step()
+            loss.backward()
+            optimizer.step()
 
         batch_items = pos_batch.size(0)
         total_items += batch_items
@@ -236,14 +218,6 @@ def train_epoch(
             global_step = epoch * len(loader) + metrics["iteration"]
             writer.add_scalar("Loss/train_iteration", b_loss, global_step)
             writer.add_scalar("Accuracy/train_iteration", b_acc, global_step)
-
-    if use_epoch_cache:
-        if scaler is not None:
-            scaler.step(optimizer)
-            scaler.update()
-        else:
-            optimizer.step()
-        clear_embeddings()
 
     avg_loss = total_loss / total_items if total_items > 0 else 0.0
 

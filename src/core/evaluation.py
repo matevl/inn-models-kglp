@@ -10,14 +10,6 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 
-def _refresh_model_embeddings(model: nn.Module):
-    refresh = getattr(model, "refresh_embedding_cache", None)
-    clear = getattr(model, "clear_embedding_cache", None)
-    if callable(refresh):
-        refresh()
-    return clear if callable(clear) else None
-
-
 @torch.no_grad()
 def evaluate_approx_ranking(
     model: nn.Module,
@@ -74,8 +66,6 @@ def evaluate_approx_ranking(
     hits3 = 0
     hits10 = 0
     n_total = 0
-
-    clear_embeddings = _refresh_model_embeddings(model)
 
     try:
         for batch in loader:
@@ -185,8 +175,7 @@ def evaluate_approx_ranking(
                 hits10 += torch.sum(ranks <= 10).item()
                 n_total += bsz
     finally:
-        if clear_embeddings is not None:
-            clear_embeddings()
+        pass
 
     if n_total == 0:
         return {"mrr": 0.0, "hits_at_1": 0.0, "hits_at_3": 0.0, "hits_at_10": 0.0}
@@ -254,8 +243,6 @@ def evaluate_exact_ranking_all_entities(
     hits3 = 0
     hits10 = 0
     n_total = 0
-
-    clear_embeddings = _refresh_model_embeddings(model)
 
     try:
         for batch in loader:
@@ -342,8 +329,7 @@ def evaluate_exact_ranking_all_entities(
                 hits10 += torch.sum(ranks <= 10).item()
                 n_total += bsz
     finally:
-        if clear_embeddings is not None:
-            clear_embeddings()
+        pass
 
     if n_total == 0:
         return {"mrr": 0.0, "hits_at_1": 0.0, "hits_at_3": 0.0, "hits_at_10": 0.0}
