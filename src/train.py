@@ -33,6 +33,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
 
     model_cfg = cfg.model
     model_type = cfg.model.name
+    gamma_margin = model_cfg.get("gamma_margin", 1.0)
 
     start_epoch = 1
 
@@ -49,7 +50,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             num_entities=dataset.num_entities,
             num_relations=dataset.num_relations,
             dim=model_cfg.dim,
-            gamma_margin=model_cfg.gamma_margin,
+            gamma_margin=gamma_margin,
             init_rho=model_cfg.init_rho,
             hidden_layers=model_cfg.get("hidden_layers", []),
             edge_dropout_p=model_cfg.get("edge_dropout_p", 0.0),
@@ -66,7 +67,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             num_entities=dataset.num_entities,
             num_relations=dataset.num_relations,
             dim=model_cfg.dim,
-            gamma_margin=model_cfg.gamma_margin,
+            gamma_margin=gamma_margin,
             init_rho=model_cfg.init_rho,
             hidden_layers=model_cfg.get("hidden_layers", []),
             edge_dropout_p=model_cfg.get("edge_dropout_p", 0.0),
@@ -104,7 +105,7 @@ def run_training(cfg: DictConfig, resume: bool) -> None:
             loader=train_loader,
             optimizer=optimizer,
             device=device,
-            gamma_margin=model_cfg.gamma_margin,
+            gamma_margin=gamma_margin,
             num_entities=dataset.num_entities,
             num_negatives=cfg.training.num_negatives_train,
             alpha=model_cfg.alpha,
