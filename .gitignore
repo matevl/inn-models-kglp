@@ -6,10 +6,10 @@
 *.pt
 
 # ---
-*datasets/
-*logs/
-*checkpoints/
-*runs/
+datasets/
+logs/
+checkpoints/
+runs/
 *.db-journal
-*experiments/
+experiments/
 /.direnv
