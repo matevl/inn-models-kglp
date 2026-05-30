@@ -27,11 +27,19 @@ def _score_triples(
     if cached_embeddings is None:
         return model.inn_score(h_idx, r_idx, t_idx)
 
-    u_c, u_r, rel_c, rel_r = cached_embeddings
+    if len(cached_embeddings) == 4:
+        u_c, u_r, rel_c, rel_r = cached_embeddings
+        rc, rr = rel_c[r_idx], rel_r[r_idx]
+    elif len(cached_embeddings) == 2:
+        u_c, u_r = cached_embeddings
+        rc, rr = model.get_relation(r_idx)
+    else:
+        raise ValueError(
+            f"Unsupported cached_embeddings structure with {len(cached_embeddings)} tensors"
+        )
 
     hc, hr = u_c[h_idx], u_r[h_idx]
     tc, tr = u_c[t_idx], u_r[t_idx]
-    rc, rr = rel_c[r_idx], rel_r[r_idx]
 
     pred_c = hc + rc
     pred_r = hr + rr
