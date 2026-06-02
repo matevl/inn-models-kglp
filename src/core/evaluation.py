@@ -10,6 +10,45 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 
+def _compute_cached_embeddings(model: nn.Module):
+    compute_all_embeddings = getattr(model, "compute_all_embeddings", None)
+    if callable(compute_all_embeddings):
+        return compute_all_embeddings()
+    return None
+
+
+def _score_triples(
+    model: nn.Module,
+    cached_embeddings,
+    h_idx: torch.Tensor,
+    r_idx: torch.Tensor,
+    t_idx: torch.Tensor,
+) -> torch.Tensor:
+    if cached_embeddings is None:
+        return model.inn_score(h_idx, r_idx, t_idx)
+
+    if len(cached_embeddings) == 4:
+        u_c, u_r, rel_c, rel_r = cached_embeddings
+        rc, rr = rel_c[r_idx], rel_r[r_idx]
+    elif len(cached_embeddings) == 2:
+        u_c, u_r = cached_embeddings
+        rc, rr = model.get_relation(r_idx)
+    else:
+        raise ValueError(
+            f"Unsupported cached_embeddings structure with {len(cached_embeddings)} tensors"
+        )
+
+    hc, hr = u_c[h_idx], u_r[h_idx]
+    tc, tr = u_c[t_idx], u_r[t_idx]
+
+    pred_c = hc + rc
+    pred_r = hr + rr
+
+    center_diff = torch.abs(pred_c - tc)
+    margin_per_dim = torch.relu(center_diff - (pred_r + tr))
+    return -torch.norm(margin_per_dim, p=1, dim=-1)
+
+
 @torch.no_grad()
 def evaluate_approx_ranking(
     model: nn.Module,
@@ -67,108 +106,127 @@ def evaluate_approx_ranking(
     hits10 = 0
     n_total = 0
 
-    for batch in loader:
-        batch = batch.to(device)
-        bsz = batch.size(0)
+    try:
+        for batch in loader:
+            batch = batch.to(device)
+            bsz = batch.size(0)
 
-        true_h = batch[:, 0]
-        true_r = batch[:, 1]
-        true_t = batch[:, 2]
+            true_h = batch[:, 0]
+            true_r = batch[:, 1]
+            true_t = batch[:, 2]
 
-        true_scores = model.inn_score(true_h, true_r, true_t)
+            cached_embeddings = _compute_cached_embeddings(model)
 
-        # Right Rank (negate tails)
-        neg_tails = torch.randint(
-            low=0,
-            high=num_entities,
-            size=(bsz, num_negatives),
-            device=device,
-        )
-
-        for i in range(bsz):
-            h, r = true_h[i].item(), true_r[i].item()
-            if (h, r) in filter_hr:
-                known_tails = filter_hr[(h, r)]
-                while True:
-                    collisions = torch.isin(neg_tails[i], known_tails)
-                    if not collisions.any():
-                        break
-                    neg_tails[i][collisions] = torch.randint(
-                        low=0,
-                        high=num_entities,
-                        size=(collisions.sum().item(),),
-                        device=device,
-                    )
-
-        # Left Rank (negate heads)
-        neg_heads = torch.randint(
-            low=0,
-            high=num_entities,
-            size=(bsz, num_negatives),
-            device=device,
-        )
-
-        for i in range(bsz):
-            r, t = true_r[i].item(), true_t[i].item()
-            if (r, t) in filter_rt:
-                known_heads = filter_rt[(r, t)]
-                while True:
-                    collisions = torch.isin(neg_heads[i], known_heads)
-                    if not collisions.any():
-                        break
-                    neg_heads[i][collisions] = torch.randint(
-                        low=0,
-                        high=num_entities,
-                        size=(collisions.sum().item(),),
-                        device=device,
-                    )
-
-        max_chunk_elems = max(entity_chunk_size, 64 * num_negatives)
-
-        # Right Rank evaluation
-        rep_h_rt = true_h.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
-        rep_r_rt = true_r.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
-        flat_t_rt = neg_tails.reshape(-1)
-
-        neg_scores_list_rt = []
-        for start_idx in range(0, rep_h_rt.size(0), max_chunk_elems):
-            end_idx = start_idx + max_chunk_elems
-            neg_scores_list_rt.append(
-                model.inn_score(
-                    rep_h_rt[start_idx:end_idx],
-                    rep_r_rt[start_idx:end_idx],
-                    flat_t_rt[start_idx:end_idx],
-                )
+            true_scores = _score_triples(
+                model,
+                cached_embeddings,
+                true_h,
+                true_r,
+                true_t,
             )
 
-        neg_scores_rt = torch.cat(neg_scores_list_rt, dim=0).reshape(bsz, num_negatives)
-        ranks_rt = 1 + torch.sum(neg_scores_rt > true_scores.unsqueeze(1), dim=1)
-
-        # Left Rank evaluation
-        flat_h_lf = neg_heads.reshape(-1)
-        rep_r_lf = true_r.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
-        rep_t_lf = true_t.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
-
-        neg_scores_list_lf = []
-        for start_idx in range(0, flat_h_lf.size(0), max_chunk_elems):
-            end_idx = start_idx + max_chunk_elems
-            neg_scores_list_lf.append(
-                model.inn_score(
-                    flat_h_lf[start_idx:end_idx],
-                    rep_r_lf[start_idx:end_idx],
-                    rep_t_lf[start_idx:end_idx],
-                )
+            # Right Rank (negate tails)
+            neg_tails = torch.randint(
+                low=0,
+                high=num_entities,
+                size=(bsz, num_negatives),
+                device=device,
             )
 
-        neg_scores_lf = torch.cat(neg_scores_list_lf, dim=0).reshape(bsz, num_negatives)
-        ranks_lf = 1 + torch.sum(neg_scores_lf > true_scores.unsqueeze(1), dim=1)
+            for i in range(bsz):
+                h, r = true_h[i].item(), true_r[i].item()
+                if (h, r) in filter_hr:
+                    known_tails = filter_hr[(h, r)]
+                    while True:
+                        collisions = torch.isin(neg_tails[i], known_tails)
+                        if not collisions.any():
+                            break
+                        neg_tails[i][collisions] = torch.randint(
+                            low=0,
+                            high=num_entities,
+                            size=(collisions.sum().item(),),
+                            device=device,
+                        )
 
-        for ranks in (ranks_rt, ranks_lf):
-            rr_total += torch.sum(1.0 / ranks.float()).item()
-            hits1 += torch.sum(ranks <= 1).item()
-            hits3 += torch.sum(ranks <= 3).item()
-            hits10 += torch.sum(ranks <= 10).item()
-            n_total += bsz
+            # Left Rank (negate heads)
+            neg_heads = torch.randint(
+                low=0,
+                high=num_entities,
+                size=(bsz, num_negatives),
+                device=device,
+            )
+
+            for i in range(bsz):
+                r, t = true_r[i].item(), true_t[i].item()
+                if (r, t) in filter_rt:
+                    known_heads = filter_rt[(r, t)]
+                    while True:
+                        collisions = torch.isin(neg_heads[i], known_heads)
+                        if not collisions.any():
+                            break
+                        neg_heads[i][collisions] = torch.randint(
+                            low=0,
+                            high=num_entities,
+                            size=(collisions.sum().item(),),
+                            device=device,
+                        )
+
+            max_chunk_elems = max(entity_chunk_size, 64 * num_negatives)
+
+            # Right Rank evaluation
+            rep_h_rt = true_h.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
+            rep_r_rt = true_r.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
+            flat_t_rt = neg_tails.reshape(-1)
+
+            neg_scores_list_rt = []
+            for start_idx in range(0, rep_h_rt.size(0), max_chunk_elems):
+                end_idx = start_idx + max_chunk_elems
+                neg_scores_list_rt.append(
+                    _score_triples(
+                        model,
+                        cached_embeddings,
+                        rep_h_rt[start_idx:end_idx],
+                        rep_r_rt[start_idx:end_idx],
+                        flat_t_rt[start_idx:end_idx],
+                    )
+                )
+
+            neg_scores_rt = torch.cat(neg_scores_list_rt, dim=0).reshape(
+                bsz, num_negatives
+            )
+            ranks_rt = 1 + torch.sum(neg_scores_rt > true_scores.unsqueeze(1), dim=1)
+
+            # Left Rank evaluation
+            flat_h_lf = neg_heads.reshape(-1)
+            rep_r_lf = true_r.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
+            rep_t_lf = true_t.unsqueeze(1).expand(-1, num_negatives).reshape(-1)
+
+            neg_scores_list_lf = []
+            for start_idx in range(0, flat_h_lf.size(0), max_chunk_elems):
+                end_idx = start_idx + max_chunk_elems
+                neg_scores_list_lf.append(
+                    _score_triples(
+                        model,
+                        cached_embeddings,
+                        flat_h_lf[start_idx:end_idx],
+                        rep_r_lf[start_idx:end_idx],
+                        rep_t_lf[start_idx:end_idx],
+                    )
+                )
+
+            neg_scores_lf = torch.cat(neg_scores_list_lf, dim=0).reshape(
+                bsz, num_negatives
+            )
+            ranks_lf = 1 + torch.sum(neg_scores_lf > true_scores.unsqueeze(1), dim=1)
+
+            for ranks in (ranks_rt, ranks_lf):
+                rr_total += torch.sum(1.0 / ranks.float()).item()
+                hits1 += torch.sum(ranks <= 1).item()
+                hits3 += torch.sum(ranks <= 3).item()
+                hits10 += torch.sum(ranks <= 10).item()
+                n_total += bsz
+    finally:
+        pass
 
     if n_total == 0:
         return {"mrr": 0.0, "hits_at_1": 0.0, "hits_at_3": 0.0, "hits_at_10": 0.0}
@@ -237,87 +295,108 @@ def evaluate_exact_ranking_all_entities(
     hits10 = 0
     n_total = 0
 
-    for batch in loader:
-        batch = batch.to(device)
-        bsz = batch.size(0)
-        true_h = batch[:, 0]
-        true_r = batch[:, 1]
-        true_t = batch[:, 2]
+    try:
+        for batch in loader:
+            batch = batch.to(device)
+            bsz = batch.size(0)
+            true_h = batch[:, 0]
+            true_r = batch[:, 1]
+            true_t = batch[:, 2]
 
-        true_scores = model.inn_score(true_h, true_r, true_t)
+            cached_embeddings = _compute_cached_embeddings(model)
 
-        rank_counts_rt = torch.zeros(bsz, dtype=torch.long, device=device)
-        rank_counts_lf = torch.zeros(bsz, dtype=torch.long, device=device)
-
-        for start in range(0, num_entities, entity_chunk_size):
-            end = min(start + entity_chunk_size, num_entities)
-            chunk_size = end - start
-
-            chunk_ents = torch.arange(start, end, device=device)
-
-            # Right Rank chunk
-            rep_h_rt = true_h.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
-            rep_r_rt = true_r.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
-            rep_t_rt = chunk_ents.unsqueeze(0).expand(bsz, -1).reshape(-1)
-
-            chunk_scores_rt = model.inn_score(rep_h_rt, rep_r_rt, rep_t_rt).reshape(
-                bsz, chunk_size
+            true_scores = _score_triples(
+                model,
+                cached_embeddings,
+                true_h,
+                true_r,
+                true_t,
             )
 
-            # Left Rank chunk
-            rep_h_lf = chunk_ents.unsqueeze(0).expand(bsz, -1).reshape(-1)
-            rep_r_lf = true_r.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
-            rep_t_lf = true_t.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
+            rank_counts_rt = torch.zeros(bsz, dtype=torch.long, device=device)
+            rank_counts_lf = torch.zeros(bsz, dtype=torch.long, device=device)
 
-            chunk_scores_lf = model.inn_score(rep_h_lf, rep_r_lf, rep_t_lf).reshape(
-                bsz, chunk_size
-            )
+            for start in range(0, num_entities, entity_chunk_size):
+                end = min(start + entity_chunk_size, num_entities)
+                chunk_size = end - start
 
-            for i in range(bsz):
-                h, r, t = true_h[i].item(), true_r[i].item(), true_t[i].item()
+                chunk_ents = torch.arange(start, end, device=device)
 
-                # Filter Right Rank
-                if (h, r) in filter_hr:
-                    known_tails = filter_hr[(h, r)]
-                    known_tails_to_mask = known_tails[known_tails != t]
-                    known_in_chunk = (
-                        known_tails_to_mask[
-                            (known_tails_to_mask >= start) & (known_tails_to_mask < end)
-                        ]
-                        - start
-                    )
-                    if len(known_in_chunk) > 0:
-                        chunk_scores_rt[i, known_in_chunk] = -1e9
+                # Right Rank chunk
+                rep_h_rt = true_h.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
+                rep_r_rt = true_r.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
+                rep_t_rt = chunk_ents.unsqueeze(0).expand(bsz, -1).reshape(-1)
 
-                # Filter Left Rank
-                if (r, t) in filter_rt:
-                    known_heads = filter_rt[(r, t)]
-                    known_heads_to_mask = known_heads[known_heads != h]
-                    known_in_chunk = (
-                        known_heads_to_mask[
-                            (known_heads_to_mask >= start) & (known_heads_to_mask < end)
-                        ]
-                        - start
-                    )
-                    if len(known_in_chunk) > 0:
-                        chunk_scores_lf[i, known_in_chunk] = -1e9
+                chunk_scores_rt = _score_triples(
+                    model,
+                    cached_embeddings,
+                    rep_h_rt,
+                    rep_r_rt,
+                    rep_t_rt,
+                ).reshape(bsz, chunk_size)
 
-            rank_counts_rt += torch.sum(
-                chunk_scores_rt > true_scores.unsqueeze(1), dim=1
-            )
-            rank_counts_lf += torch.sum(
-                chunk_scores_lf > true_scores.unsqueeze(1), dim=1
-            )
+                # Left Rank chunk
+                rep_h_lf = chunk_ents.unsqueeze(0).expand(bsz, -1).reshape(-1)
+                rep_r_lf = true_r.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
+                rep_t_lf = true_t.unsqueeze(1).expand(-1, chunk_size).reshape(-1)
 
-        ranks_rt = 1 + rank_counts_rt
-        ranks_lf = 1 + rank_counts_lf
+                chunk_scores_lf = _score_triples(
+                    model,
+                    cached_embeddings,
+                    rep_h_lf,
+                    rep_r_lf,
+                    rep_t_lf,
+                ).reshape(bsz, chunk_size)
 
-        for ranks in (ranks_rt, ranks_lf):
-            rr_total += torch.sum(1.0 / ranks.float()).item()
-            hits1 += torch.sum(ranks <= 1).item()
-            hits3 += torch.sum(ranks <= 3).item()
-            hits10 += torch.sum(ranks <= 10).item()
-            n_total += bsz
+                for i in range(bsz):
+                    h, r, t = true_h[i].item(), true_r[i].item(), true_t[i].item()
+
+                    # Filter Right Rank
+                    if (h, r) in filter_hr:
+                        known_tails = filter_hr[(h, r)]
+                        known_tails_to_mask = known_tails[known_tails != t]
+                        known_in_chunk = (
+                            known_tails_to_mask[
+                                (known_tails_to_mask >= start)
+                                & (known_tails_to_mask < end)
+                            ]
+                            - start
+                        )
+                        if len(known_in_chunk) > 0:
+                            chunk_scores_rt[i, known_in_chunk] = -1e9
+
+                    # Filter Left Rank
+                    if (r, t) in filter_rt:
+                        known_heads = filter_rt[(r, t)]
+                        known_heads_to_mask = known_heads[known_heads != h]
+                        known_in_chunk = (
+                            known_heads_to_mask[
+                                (known_heads_to_mask >= start)
+                                & (known_heads_to_mask < end)
+                            ]
+                            - start
+                        )
+                        if len(known_in_chunk) > 0:
+                            chunk_scores_lf[i, known_in_chunk] = -1e9
+
+                rank_counts_rt += torch.sum(
+                    chunk_scores_rt > true_scores.unsqueeze(1), dim=1
+                )
+                rank_counts_lf += torch.sum(
+                    chunk_scores_lf > true_scores.unsqueeze(1), dim=1
+                )
+
+            ranks_rt = 1 + rank_counts_rt
+            ranks_lf = 1 + rank_counts_lf
+
+            for ranks in (ranks_rt, ranks_lf):
+                rr_total += torch.sum(1.0 / ranks.float()).item()
+                hits1 += torch.sum(ranks <= 1).item()
+                hits3 += torch.sum(ranks <= 3).item()
+                hits10 += torch.sum(ranks <= 10).item()
+                n_total += bsz
+    finally:
+        pass
 
     if n_total == 0:
         return {"mrr": 0.0, "hits_at_1": 0.0, "hits_at_3": 0.0, "hits_at_10": 0.0}

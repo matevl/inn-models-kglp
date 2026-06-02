@@ -90,9 +90,9 @@ class ComplexInterval:
         """
         diff_re = self.c_re - other.c_re
         diff_im = self.c_im - other.c_im
-        dist_c = torch.sqrt(diff_re**2 + diff_im**2).sum(dim=-1)
-        sum_r = (self.r + other.r).sum(dim=-1)
-        return sum_r - dist_c
+        center_dist_per_dim = torch.sqrt(diff_re**2 + diff_im**2)
+        margin_per_dim = F.relu(center_dist_per_dim - (self.r + other.r))
+        return -torch.norm(margin_per_dim, p=1, dim=-1)
 
 
 def irotate(

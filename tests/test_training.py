@@ -31,6 +31,7 @@ def test_training_epoch_speed(model_type):
         gamma_margin=1.0,
         init_rho=-5.0,
         hidden_layers=[800] if model_type == "inn_ours_mlp" else None,
+        edge_dropout_p=0.0,
     ).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)

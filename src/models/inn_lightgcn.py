@@ -64,6 +64,7 @@ class INNLightGCNLinkPredictor(nn.Module):
         dim: int,
         gamma_margin: float = 1.0,
         init_rho: float = -5.0,
+        edge_dropout_p: float = 0.0,
     ):
         super().__init__()
         self.entity_emb = IntervalEntityEmbedding(num_entities, dim, init_rho=init_rho)
@@ -71,17 +72,25 @@ class INNLightGCNLinkPredictor(nn.Module):
         self.rel_rho = nn.Embedding(num_relations, dim)
         self.net = IntervalLightGCN(dim, max(dim, 64), dim, layers=2)
         self.gamma_margin = gamma_margin
+        self.edge_dropout_p = edge_dropout_p
 
         nn.init.uniform_(self.rel_center.weight, -0.1, 0.1)
         nn.init.constant_(self.rel_rho.weight, init_rho)
         self.register_buffer("A", None, persistent=False)
 
     def build_graph(self, train_triples: torch.Tensor) -> None:
-        """Construct and store the normalized adjacency matrix."""
+        """Construct and store the normalized adjacency matrix.
+        Edge dropout is applied during training to prevent data leakage.
+        """
         num_ent = self.entity_emb.center.num_embeddings
         device = self.entity_emb.center.weight.device
 
-        edges = train_triples[:, [0, 2]].t()  # Extract entity pairs (2 x E)
+        triples = train_triples.clone()
+        if self.edge_dropout_p > 0.0 and self.training:
+            mask = torch.rand(len(triples), device=device) > self.edge_dropout_p
+            triples = triples[mask]
+
+        edges = triples[:, [0, 2]].t()  # Extract entity pairs (2 x E)
         edges = edges.to(device)
         edges = torch.cat([edges, edges[[1, 0]]], dim=1)  # Make graph undirected
 

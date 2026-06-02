@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from core.intervals import Interval
 from .inn_ours_mlp import IntervalEntityEmbedding
 
 
@@ -46,9 +45,9 @@ class INNTransELinkPredictor(nn.Module):
         pred_c = hc + rc
         pred_r = hr + rr
 
-        distance = torch.norm(pred_c - tc, p=1, dim=-1)
-        max_radius_sum = (pred_r + tr).sum(dim=-1)
-        return max_radius_sum - distance
+        center_diff = torch.abs(pred_c - tc)
+        margin_per_dim = F.relu(center_diff - (pred_r + tr))
+        return -torch.norm(margin_per_dim, p=1, dim=-1)
 
     def forward(
         self,
@@ -69,9 +68,9 @@ class INNTransELinkPredictor(nn.Module):
         pred_c = hc + rc
         pred_r = hr + rr
 
-        distance = torch.norm(pred_c - tc, p=1, dim=-1)
-        max_radius_sum = (pred_r + tr).sum(dim=-1)
-        pos_scores = max_radius_sum - distance
+        center_diff = torch.abs(pred_c - tc)
+        margin_per_dim = F.relu(center_diff - (pred_r + tr))
+        pos_scores = -torch.norm(margin_per_dim, p=1, dim=-1)
 
         # Negative scores
         hc_neg, hr_neg = self.entity_emb(neg_h_idx)
@@ -83,9 +82,9 @@ class INNTransELinkPredictor(nn.Module):
         pred_c_neg = hc_neg + rc_neg
         pred_r_neg = hr_neg + rr_neg
 
-        distance_neg = torch.norm(pred_c_neg - tc_neg, p=1, dim=-1)
-        max_radius_sum_neg = (pred_r_neg + tr_neg).sum(dim=-1)
-        neg_scores = max_radius_sum_neg - distance_neg
+        center_diff_neg = torch.abs(pred_c_neg - tc_neg)
+        margin_per_dim_neg = F.relu(center_diff_neg - (pred_r_neg + tr_neg))
+        neg_scores = -torch.norm(margin_per_dim_neg, p=1, dim=-1)
 
         return pos_scores, neg_scores
 
@@ -105,12 +104,10 @@ class INNTransELinkPredictor(nn.Module):
         pred_r = hr + rr
 
         diff_c = pred_c.unsqueeze(1) - u_c.unsqueeze(0)
-        distance = torch.norm(diff_c, p=1, dim=-1)
 
         sum_r = pred_r.unsqueeze(1) + u_r.unsqueeze(0)
-        max_radius_sum = sum_r.sum(dim=-1)
-
-        return max_radius_sum - distance
+        margin_per_dim = F.relu(diff_c.abs() - sum_r)
+        return -torch.norm(margin_per_dim, p=1, dim=-1)
 
     def get_radii_stats(self) -> dict[str, float]:
         with torch.no_grad():

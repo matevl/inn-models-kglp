@@ -25,15 +25,18 @@ mkdir -p datasets checkpoints logs
 log_success "Directories 'datasets/', 'checkpoints/', 'logs/' are ready."
 
 # 2. Virtual Environment Setup
+PYTHON_BIN=$(command -v python3.12 || command -v python3)
+log_info "Using Python: $($PYTHON_BIN --version)"
+
 if command -v uv &> /dev/null; then
     log_info "Tool 'uv' detected. Using it for faster setup."
-    uv venv
+    uv venv --python "$PYTHON_BIN"
     source .venv/bin/activate
     log_info "Installing dependencies with uv..."
     uv pip install -e .
 else
     log_info "'uv' not found. Using standard python venv."
-    python3 -m venv .venv
+    "$PYTHON_BIN" -m venv .venv
     source .venv/bin/activate
     log_info "Upgrading pip..."
     pip install --upgrade pip
