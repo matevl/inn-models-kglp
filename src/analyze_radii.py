@@ -1,4 +1,24 @@
 from __future__ import annotations
+from utils.runtime import load_checkpoint, select_device, configure_logging
+from models import build_link_predictor, infer_model_type_from_state_dict
+
+
+import argparse
+import json
+import logging
+from pathlib import Path
+from typing import Dict
+
+import matplotlib.pyplot as plt
+import torch
+import torch.nn.functional as F
+import numpy as np
+
+
+from data.dataset import load_dataset
+
+# Ensure we can import from the src directory
+import sys
 
 """
 Radius (Ray) Analysis Tool for Interval Neural Networks.
@@ -8,27 +28,10 @@ It supports multiple architectures (GCN, MLP, RotatE, TransE) and provides
 statistics and distributions for both base embeddings and transformed intervals.
 """
 
-import argparse
-import json
-import logging
-from pathlib import Path
-from typing import Any, Dict
-
-import matplotlib.pyplot as plt
-import torch
-import torch.nn.functional as F
-import numpy as np
-
-# Ensure we can import from the src directory
-import sys
 
 project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.append(str(project_root / "src"))
-
-from data.dataset import load_dataset
-from models import build_link_predictor, infer_model_type_from_state_dict
-from utils.runtime import load_checkpoint, select_device, configure_logging
 
 LOGGER = logging.getLogger("inn-models-kglp.analysis")
 

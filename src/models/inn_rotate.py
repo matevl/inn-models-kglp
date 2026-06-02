@@ -116,9 +116,6 @@ class INNRotatELinkPredictor(nn.Module):
 
         pos_scores = compute_score(pos_h_idx, pos_t_idx, rc_phase, rr)
 
-        rc_phase_neg = rc_phase.unsqueeze(1)
-        rr_neg = rr.unsqueeze(1)
-
         neg_scores = compute_score(
             neg_h_idx, neg_t_idx, rc_phase.unsqueeze(1), rr.unsqueeze(1)
         )

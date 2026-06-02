@@ -276,7 +276,6 @@ class INNCompGCNLinkPredictor(nn.Module):
         pred_r = hr + rr
 
         diff_c = pred_c.unsqueeze(1) - u_c.unsqueeze(0)
-        distance = torch.norm(diff_c, p=1, dim=-1)
 
         sum_r = pred_r.unsqueeze(1) + u_r.unsqueeze(0)
         margin_per_dim = F.relu(diff_c.abs() - sum_r)
