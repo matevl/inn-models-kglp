@@ -127,9 +127,9 @@ class INNLinkPredictor(nn.Module):
         pred_c = hc + rc
         pred_r = hr + rr
 
-        distance = torch.norm(pred_c - tc, p=1, dim=-1)
-        max_radius_sum = torch.norm(pred_r + tr, p=1, dim=-1)
-        score = max_radius_sum - distance
+        center_diff = torch.abs(pred_c - tc)
+        margin_per_dim = F.relu(center_diff - (pred_r + tr))
+        score = -torch.norm(margin_per_dim, p=1, dim=-1)
         return score
 
     def forward(
@@ -158,9 +158,9 @@ class INNLinkPredictor(nn.Module):
         pred_c = hc + rc
         pred_r = hr + rr
 
-        distance = torch.norm(pred_c - tc, p=1, dim=-1)
-        max_radius_sum = torch.norm(pred_r + tr, p=1, dim=-1)
-        pos_scores = max_radius_sum - distance
+        center_diff = torch.abs(pred_c - tc)
+        margin_per_dim = F.relu(center_diff - (pred_r + tr))
+        pos_scores = -torch.norm(margin_per_dim, p=1, dim=-1)
 
         hc_neg = u_c[neg_h_idx]
         hr_neg = u_r[neg_h_idx]
@@ -173,9 +173,9 @@ class INNLinkPredictor(nn.Module):
         pred_c_neg = hc_neg + rc_neg
         pred_r_neg = hr_neg + rr_neg
 
-        distance_neg = torch.norm(pred_c_neg - tc_neg, p=1, dim=-1)
-        max_radius_sum_neg = torch.norm(pred_r_neg + tr_neg, p=1, dim=-1)
-        neg_scores = max_radius_sum_neg - distance_neg
+        center_diff_neg = torch.abs(pred_c_neg - tc_neg)
+        margin_per_dim_neg = F.relu(center_diff_neg - (pred_r_neg + tr_neg))
+        neg_scores = -torch.norm(margin_per_dim_neg, p=1, dim=-1)
 
         return pos_scores, neg_scores
 
