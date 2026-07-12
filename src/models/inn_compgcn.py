@@ -222,7 +222,7 @@ class INNCompGCNLinkPredictor(nn.Module):
         pred_r = hr + rr
 
         center_diff = torch.abs(pred_c - tc)
-        margin_per_dim = F.relu(center_diff - (pred_r + tr))
+        margin_per_dim = F.relu(center_diff + tr - pred_r)
         return -torch.norm(margin_per_dim, p=1, dim=-1)
 
     def forward(
@@ -246,7 +246,7 @@ class INNCompGCNLinkPredictor(nn.Module):
         pred_r = hr + rr
 
         center_diff = torch.abs(pred_c - tc)
-        margin_per_dim = F.relu(center_diff - (pred_r + tr))
+        margin_per_dim = F.relu(center_diff + tr - pred_r)
         pos_scores = -torch.norm(margin_per_dim, p=1, dim=-1)
 
         hc_neg, hr_neg = u_c[neg_h_idx], u_r[neg_h_idx]
@@ -257,7 +257,7 @@ class INNCompGCNLinkPredictor(nn.Module):
         pred_r_neg = hr_neg + rr_neg
 
         center_diff_neg = torch.abs(pred_c_neg - tc_neg)
-        margin_per_dim_neg = F.relu(center_diff_neg - (pred_r_neg + tr_neg))
+        margin_per_dim_neg = F.relu(center_diff_neg + tr_neg - pred_r_neg)
         neg_scores = -torch.norm(margin_per_dim_neg, p=1, dim=-1)
 
         return pos_scores, neg_scores
@@ -277,6 +277,5 @@ class INNCompGCNLinkPredictor(nn.Module):
 
         diff_c = pred_c.unsqueeze(1) - u_c.unsqueeze(0)
 
-        sum_r = pred_r.unsqueeze(1) + u_r.unsqueeze(0)
-        margin_per_dim = F.relu(diff_c.abs() - sum_r)
+        margin_per_dim = F.relu(diff_c.abs() + u_r.unsqueeze(0) - pred_r.unsqueeze(1))
         return -torch.norm(margin_per_dim, p=1, dim=-1)

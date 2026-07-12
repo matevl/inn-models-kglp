@@ -45,7 +45,7 @@ def _score_triples(
     pred_r = hr + rr
 
     center_diff = torch.abs(pred_c - tc)
-    margin_per_dim = torch.relu(center_diff - (pred_r + tr))
+    margin_per_dim = torch.relu(center_diff + tr - pred_r)
     return -torch.norm(margin_per_dim, p=1, dim=-1)
 
 

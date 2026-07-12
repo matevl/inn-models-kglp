@@ -91,7 +91,7 @@ class ComplexInterval:
         diff_re = self.c_re - other.c_re
         diff_im = self.c_im - other.c_im
         center_dist_per_dim = torch.sqrt(diff_re**2 + diff_im**2)
-        margin_per_dim = F.relu(center_dist_per_dim - (self.r + other.r))
+        margin_per_dim = F.relu(center_dist_per_dim + other.r - self.r)
         return -torch.norm(margin_per_dim, p=1, dim=-1)
 
 

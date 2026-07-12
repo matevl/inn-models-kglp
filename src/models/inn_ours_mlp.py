@@ -128,7 +128,7 @@ class INNLinkPredictor(nn.Module):
         pred_r = hr + rr
 
         center_diff = torch.abs(pred_c - tc)
-        margin_per_dim = F.relu(center_diff - (pred_r + tr))
+        margin_per_dim = F.relu(center_diff + tr - pred_r)
         score = -torch.norm(margin_per_dim, p=1, dim=-1)
         return score
 
@@ -159,7 +159,7 @@ class INNLinkPredictor(nn.Module):
         pred_r = hr + rr
 
         center_diff = torch.abs(pred_c - tc)
-        margin_per_dim = F.relu(center_diff - (pred_r + tr))
+        margin_per_dim = F.relu(center_diff + tr - pred_r)
         pos_scores = -torch.norm(margin_per_dim, p=1, dim=-1)
 
         hc_neg = u_c[neg_h_idx]
@@ -174,7 +174,7 @@ class INNLinkPredictor(nn.Module):
         pred_r_neg = hr_neg + rr_neg
 
         center_diff_neg = torch.abs(pred_c_neg - tc_neg)
-        margin_per_dim_neg = F.relu(center_diff_neg - (pred_r_neg + tr_neg))
+        margin_per_dim_neg = F.relu(center_diff_neg + tr_neg - pred_r_neg)
         neg_scores = -torch.norm(margin_per_dim_neg, p=1, dim=-1)
 
         return pos_scores, neg_scores
