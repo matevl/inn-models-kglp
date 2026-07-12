@@ -29,24 +29,38 @@ class KGDataset:
 
 
 def _resolve_split_path(dataset_path: Path, split_name: str) -> Path:
-    direct = dataset_path / f"{split_name}.txt"
-    nested = dataset_path / "data" / f"{split_name}.txt"
-
-    if direct.exists():
-        return direct
-    if nested.exists():
-        return nested
+    for ext in [".txt", ".csv"]:
+        direct = dataset_path / f"{split_name}{ext}"
+        nested = dataset_path / "data" / f"{split_name}{ext}"
+        if direct.exists():
+            return direct
+        if nested.exists():
+            return nested
 
     raise FileNotFoundError(
-        f"Could not find {split_name}.txt in either {direct} or {nested}."
+        f"Could not find {split_name}.txt or {split_name}.csv in either {dataset_path} or {dataset_path}/data."
     )
 
 
 def _read_triples(path: Path) -> List[TripleText]:
     triples: List[TripleText] = []
+    is_csv = path.suffix == ".csv"
     with path.open("r", encoding="utf-8") as f:
         for line in f:
-            parts = line.strip().split("\t")
+            line_str = line.strip()
+            if not line_str:
+                continue
+            if is_csv:
+                parts = line_str.split(",")
+                if (
+                    len(parts) == 3
+                    and parts[0] == "head"
+                    and parts[1] == "relation"
+                    and parts[2] == "tail"
+                ):
+                    continue  # skip header row
+            else:
+                parts = line_str.split("\t")
             if len(parts) != 3:
                 continue
             h, r, t = parts
