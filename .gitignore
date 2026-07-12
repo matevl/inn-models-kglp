@@ -11,5 +11,5 @@ logs/
 checkpoints/
 runs/
 *.db-journal
-experiments/
+/experiments/
 /.direnv
