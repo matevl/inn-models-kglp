@@ -52,7 +52,12 @@ def _read_triples(path: Path) -> List[TripleText]:
                 continue
             if is_csv:
                 parts = line_str.split(",")
-                if len(parts) == 3 and parts[0] == "head" and parts[1] == "relation" and parts[2] == "tail":
+                if (
+                    len(parts) == 3
+                    and parts[0] == "head"
+                    and parts[1] == "relation"
+                    and parts[2] == "tail"
+                ):
                     continue  # skip header row
             else:
                 parts = line_str.split("\t")
