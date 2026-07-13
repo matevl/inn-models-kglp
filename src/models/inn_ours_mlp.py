@@ -3,6 +3,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 from core.intervals import Interval, interval_relu
 
@@ -25,20 +26,29 @@ class IntervalEntityEmbedding(nn.Module):
 class IntervalLinear_INN_Ours_MLP(nn.Module):
     def __init__(self, in_dim: int, out_dim: int):
         super().__init__()
-        self.weight_c = nn.Parameter(torch.randn(out_dim, in_dim) * 0.02)
-        self.weight_r = nn.Parameter(torch.full((out_dim, in_dim), -5.0))
+        self.weight_c = nn.Parameter(torch.empty(out_dim, in_dim))
+        nn.init.xavier_uniform_(self.weight_c)
         self.bias_c = nn.Parameter(torch.zeros(out_dim))
+
+        self.weight_r = nn.Parameter(torch.full((out_dim, in_dim), -5.0))
         self.bias_r = nn.Parameter(torch.full((out_dim,), -5.0))
 
     def forward(
         self, center: torch.Tensor, radius: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         w_center = self.weight_c
-        w_radius = F.softplus(self.weight_r)
+        w_radius_raw = F.softplus(self.weight_r)
         b_radius = F.softplus(self.bias_r)
 
         center_out = center @ w_center.t() + self.bias_c
-        w_combined = w_center.abs() + w_radius
+
+        w_radius_sum = w_radius_raw.sum(dim=-1, keepdim=True).clamp(min=1e-6)
+        w_radius = w_radius_raw * (0.1 / w_radius_sum).clamp(max=1.0)
+
+        w_combined_raw = w_center.abs() + w_radius
+        w_combined_sum = w_combined_raw.sum(dim=-1, keepdim=True).clamp(min=1e-6)
+        w_combined = w_combined_raw * (0.9 / w_combined_sum).clamp(max=1.0)
+
         radius_out = (
             (center.abs() @ w_radius.t()) + (radius @ w_combined.t()) + b_radius
         )
